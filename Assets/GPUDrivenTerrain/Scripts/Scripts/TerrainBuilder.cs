@@ -5,7 +5,7 @@ using Unity.Mathematics;
 
 namespace GPUDrivenTerrainLearn
 {
-    public class TerrainBuilder:System.IDisposable
+    public class TerrainBuilder : System.IDisposable
     {
         private ComputeShader _computeShader;
 
@@ -19,13 +19,13 @@ namespace GPUDrivenTerrainLearn
 
         private ComputeBuffer _patchIndirectArgs;
         private ComputeBuffer _patchBoundsBuffer;
-        private ComputeBuffer _patchBoundsIndirectArgs; 
+        private ComputeBuffer _patchBoundsIndirectArgs;
         private ComputeBuffer _indirectArgsBuffer;
         private RenderTexture _lodMap;
 
-        private const int PatchStripSize = 9*4;
+        private const int PatchStripSize = 9 * 4;
 
-        private Vector4 _nodeEvaluationC = new Vector4(1,0,0,0);
+        private Vector4 _nodeEvaluationC = new Vector4(1, 0, 0, 0);
         private bool _isNodeEvaluationCDirty = true;
 
         private float _hizDepthBias = 1;
@@ -46,35 +46,39 @@ namespace GPUDrivenTerrainLearn
         private int _maxNodeBufferSize = 200;
         private int _tempNodeBufferSize = 50;
 
-        public TerrainBuilder(TerrainAsset asset){
+        public TerrainBuilder(TerrainAsset asset)
+        {
             _asset = asset;
             _computeShader = asset.computeShader;
             _commandBuffer.name = "TerrainBuild";
-            _culledPatchBuffer = new ComputeBuffer(_maxNodeBufferSize * 64,PatchStripSize,ComputeBufferType.Append|ComputeBufferType.Counter);
-            
-            _patchIndirectArgs = new ComputeBuffer(5,4,ComputeBufferType.IndirectArguments);
-            _patchIndirectArgs.SetData(new uint[]{TerrainAsset.patchMesh.GetIndexCount(0),0,0,0,0});
+            _culledPatchBuffer = new ComputeBuffer(_maxNodeBufferSize * 64, PatchStripSize, ComputeBufferType.Append | ComputeBufferType.Counter);
 
-            _patchBoundsIndirectArgs = new ComputeBuffer(5,4,ComputeBufferType.IndirectArguments);
-            _patchBoundsIndirectArgs.SetData(new uint[]{TerrainAsset.unitCubeMesh.GetIndexCount(0),0,0,0,0});
+            _patchIndirectArgs = new ComputeBuffer(5, 4, ComputeBufferType.IndirectArguments);
+            _patchIndirectArgs.SetData(new uint[] { TerrainAsset.patchMesh.GetIndexCount(0), 0, 0, 0, 0 });
 
-            _maxLODNodeList = new ComputeBuffer(TerrainAsset.MAX_LOD_NODE_COUNT * TerrainAsset.MAX_LOD_NODE_COUNT,8,ComputeBufferType.Append|ComputeBufferType.Counter|ComputeBufferType.Structured);
+            _patchBoundsIndirectArgs = new ComputeBuffer(5, 4, ComputeBufferType.IndirectArguments);
+            _patchBoundsIndirectArgs.SetData(new uint[] { TerrainAsset.unitCubeMesh.GetIndexCount(0), 0, 0, 0, 0 });
+
+            _maxLODNodeList = new ComputeBuffer(TerrainAsset.MAX_LOD_NODE_COUNT * TerrainAsset.MAX_LOD_NODE_COUNT, 8, ComputeBufferType.Append | ComputeBufferType.Counter | ComputeBufferType.Structured);
             this.InitMaxLODNodeListDatas();
 
-            _nodeListA = new ComputeBuffer(_tempNodeBufferSize,8,ComputeBufferType.Append|ComputeBufferType.Counter|ComputeBufferType.Structured);
-            _nodeListB = new ComputeBuffer(_tempNodeBufferSize,8,ComputeBufferType.Append|ComputeBufferType.Counter|ComputeBufferType.Structured);
-            _indirectArgsBuffer = new ComputeBuffer(3,4,ComputeBufferType.IndirectArguments);
-            _indirectArgsBuffer.SetData(new uint[]{1,1,1});
-            _finalNodeListBuffer = new ComputeBuffer(_maxNodeBufferSize,12,ComputeBufferType.Append);
-            _nodeDescriptors = new ComputeBuffer((int)(TerrainAsset.MAX_NODE_ID + 1),4);
-            
-            _patchBoundsBuffer = new ComputeBuffer(_maxNodeBufferSize * 64,4*10,ComputeBufferType.Append);
+            _nodeListA = new ComputeBuffer(_tempNodeBufferSize, 8, ComputeBufferType.Append | ComputeBufferType.Counter | ComputeBufferType.Structured);
+            _nodeListB = new ComputeBuffer(_tempNodeBufferSize, 8, ComputeBufferType.Append | ComputeBufferType.Counter | ComputeBufferType.Structured);
+            _indirectArgsBuffer = new ComputeBuffer(3, 4, ComputeBufferType.IndirectArguments);
+            _indirectArgsBuffer.SetData(new uint[] { 1, 1, 1 });
+            _finalNodeListBuffer = new ComputeBuffer(_maxNodeBufferSize, 12, ComputeBufferType.Append);
+            _nodeDescriptors = new ComputeBuffer((int)(TerrainAsset.MAX_NODE_ID + 1), 4);
+
+            _patchBoundsBuffer = new ComputeBuffer(_maxNodeBufferSize * 64, 4 * 10, ComputeBufferType.Append);
 
             _lodMap = TextureUtility.CreateLODMap(160);
-            
-            if(SystemInfo.usesReversedZBuffer){
+
+            if (SystemInfo.usesReversedZBuffer)
+            {
                 _computeShader.EnableKeyword("_REVERSE_Z");
-            }else{
+            }
+            else
+            {
                 _computeShader.DisableKeyword("_REVERSE_Z");
             }
 
@@ -85,20 +89,24 @@ namespace GPUDrivenTerrainLearn
             this.hizDepthBias = 1;
         }
 
-        private void InitMaxLODNodeListDatas(){
+        private void InitMaxLODNodeListDatas()
+        {
             var maxLODNodeCount = TerrainAsset.MAX_LOD_NODE_COUNT;
             uint2[] datas = new uint2[maxLODNodeCount * maxLODNodeCount];
             var index = 0;
-            for(uint i = 0; i < maxLODNodeCount; i ++){
-                for(uint j = 0; j < maxLODNodeCount; j ++){
-                    datas[index] = new uint2(i,j);
-                    index ++;
+            for (uint i = 0; i < maxLODNodeCount; i++)
+            {
+                for (uint j = 0; j < maxLODNodeCount; j++)
+                {
+                    datas[index] = new uint2(i, j);
+                    index++;
                 }
             }
             _maxLODNodeList.SetData(datas);
         }
 
-        private void InitKernels(){
+        private void InitKernels()
+        {
             _kernelOfTraverseQuadTree = _computeShader.FindKernel("TraverseQuadTree");
             _kernelOfBuildLodMap = _computeShader.FindKernel("BuildLodMap");
             _kernelOfBuildPatches = _computeShader.FindKernel("BuildPatches");
@@ -106,76 +114,97 @@ namespace GPUDrivenTerrainLearn
             this.BindComputeShader(_kernelOfBuildLodMap);
             this.BindComputeShader(_kernelOfBuildPatches);
         }
-        private void BindComputeShader(int kernelIndex){
-            _computeShader.SetTexture(kernelIndex,"QuadTreeTexture",_asset.quadTreeMap);
-            if(kernelIndex == _kernelOfTraverseQuadTree){
-                _computeShader.SetBuffer(kernelIndex,ShaderConstants.AppendFinalNodeList,_finalNodeListBuffer);
-                _computeShader.SetTexture(kernelIndex,"MinMaxHeightTexture",_asset.minMaxHeightMap);
-                _computeShader.SetBuffer(kernelIndex,ShaderConstants.NodeDescriptors,_nodeDescriptors);
-            }else if(kernelIndex == _kernelOfBuildLodMap){
-                _computeShader.SetTexture(kernelIndex,ShaderConstants.LodMap,_lodMap);
-                _computeShader.SetBuffer(kernelIndex,ShaderConstants.NodeDescriptors,_nodeDescriptors);
+        private void BindComputeShader(int kernelIndex)
+        {
+            _computeShader.SetTexture(kernelIndex, "QuadTreeTexture", _asset.quadTreeMap);
+            if (kernelIndex == _kernelOfTraverseQuadTree)
+            {
+                _computeShader.SetBuffer(kernelIndex, ShaderConstants.AppendFinalNodeList, _finalNodeListBuffer);
+                _computeShader.SetTexture(kernelIndex, "MinMaxHeightTexture", _asset.minMaxHeightMap);
+                _computeShader.SetBuffer(kernelIndex, ShaderConstants.NodeDescriptors, _nodeDescriptors);
             }
-            else if(kernelIndex == _kernelOfBuildPatches){
-                _computeShader.SetTexture(kernelIndex,ShaderConstants.LodMap,_lodMap);
-                _computeShader.SetTexture(kernelIndex,"MinMaxHeightTexture",_asset.minMaxHeightMap);
-                _computeShader.SetBuffer(kernelIndex,ShaderConstants.FinalNodeList,_finalNodeListBuffer);
-                _computeShader.SetBuffer(kernelIndex,"CulledPatchList",_culledPatchBuffer);
-                _computeShader.SetBuffer(kernelIndex,"PatchBoundsList",_patchBoundsBuffer);
+            else if (kernelIndex == _kernelOfBuildLodMap)
+            {
+                _computeShader.SetTexture(kernelIndex, ShaderConstants.LodMap, _lodMap);
+                _computeShader.SetBuffer(kernelIndex, ShaderConstants.NodeDescriptors, _nodeDescriptors);
+            }
+            else if (kernelIndex == _kernelOfBuildPatches)
+            {
+                _computeShader.SetTexture(kernelIndex, ShaderConstants.LodMap, _lodMap);
+                _computeShader.SetTexture(kernelIndex, "MinMaxHeightTexture", _asset.minMaxHeightMap);
+                _computeShader.SetBuffer(kernelIndex, ShaderConstants.FinalNodeList, _finalNodeListBuffer);
+                _computeShader.SetBuffer(kernelIndex, "CulledPatchList", _culledPatchBuffer);
+                _computeShader.SetBuffer(kernelIndex, "PatchBoundsList", _patchBoundsBuffer);
             }
         }
 
-        private void InitWorldParams(){
+        private void InitWorldParams()
+        {
             float wSize = _asset.worldSize.x;
             int nodeCount = TerrainAsset.MAX_LOD_NODE_COUNT;
             Vector4[] worldLODParams = new Vector4[TerrainAsset.MAX_LOD + 1];
-            for(var lod = TerrainAsset.MAX_LOD; lod >=0; lod --){
+            for (var lod = TerrainAsset.MAX_LOD; lod >= 0; lod--)
+            {
                 var nodeSize = wSize / nodeCount;
                 var patchExtent = nodeSize / 16;
-                var sectorCountPerNode = (int)Mathf.Pow(2,lod);
-                worldLODParams[lod] = new Vector4(nodeSize,patchExtent,nodeCount,sectorCountPerNode);
+                var sectorCountPerNode = (int)Mathf.Pow(2, lod);
+                worldLODParams[lod] = new Vector4(nodeSize, patchExtent, nodeCount, sectorCountPerNode);
                 nodeCount *= 2;
             }
-            _computeShader.SetVectorArray(ShaderConstants.WorldLodParams,worldLODParams);
+            _computeShader.SetVectorArray(ShaderConstants.WorldLodParams, worldLODParams);
 
-            int[] nodeIDOffsetLOD = new int[ (TerrainAsset.MAX_LOD + 1) * 4];
+            int[] nodeIDOffsetLOD = new int[(TerrainAsset.MAX_LOD + 1) * 4];
             int nodeIdOffset = 0;
-            for(int lod = TerrainAsset.MAX_LOD; lod >=0; lod --){
+            for (int lod = TerrainAsset.MAX_LOD; lod >= 0; lod--)
+            {
                 nodeIDOffsetLOD[lod * 4] = nodeIdOffset;
                 nodeIdOffset += (int)(worldLODParams[lod].z * worldLODParams[lod].z);
             }
-            _computeShader.SetInts("NodeIDOffsetOfLOD",nodeIDOffsetLOD);
+            _computeShader.SetInts("NodeIDOffsetOfLOD", nodeIDOffsetLOD);
         }
 
 
-        public int boundsHeightRedundance{
-            set{
-                _computeShader.SetInt("_BoundsHeightRedundance",value);
+        public int boundsHeightRedundance
+        {
+            set
+            {
+                _computeShader.SetInt("_BoundsHeightRedundance", value);
             }
         }
 
-        public float nodeEvalDistance{
-            set{
+        public float nodeEvalDistance
+        {
+            set
+            {
                 _nodeEvaluationC.x = value;
                 _isNodeEvaluationCDirty = true;
             }
         }
 
-        public bool enableSeamDebug{
-            set{
-                if(value){
+        public bool enableSeamDebug
+        {
+            set
+            {
+                if (value)
+                {
                     _computeShader.EnableKeyword("ENABLE_SEAM");
-                }else{
+                }
+                else
+                {
                     _computeShader.DisableKeyword("ENABLE_SEAM");
                 }
             }
         }
 
-        public float hizDepthBias{
-            set{
+        public float hizDepthBias
+        {
+            set
+            {
                 _hizDepthBias = value;
-                _computeShader.SetFloat("_HizDepthBias",Mathf.Clamp(value, 0.01f,1000f));
-            }get{
+                _computeShader.SetFloat("_HizDepthBias", Mathf.Clamp(value, 0.01f, 1000f));
+            }
+            get
+            {
                 return _hizDepthBias;
             }
         }
@@ -196,21 +225,31 @@ namespace GPUDrivenTerrainLearn
 
 
 
-        public bool isFrustumCullEnabled{
-            set{
-                if(value){
+        public bool isFrustumCullEnabled
+        {
+            set
+            {
+                if (value)
+                {
                     _computeShader.EnableKeyword("ENABLE_FRUS_CULL");
-                }else{
+                }
+                else
+                {
                     _computeShader.DisableKeyword("ENABLE_FRUS_CULL");
                 }
             }
         }
 
-        public bool isHizOcclusionCullingEnabled{
-            set{
-                if(value){
+        public bool isHizOcclusionCullingEnabled
+        {
+            set
+            {
+                if (value)
+                {
                     _computeShader.EnableKeyword("ENABLE_HIZ_CULL");
-                }else{
+                }
+                else
+                {
                     _computeShader.DisableKeyword("ENABLE_HIZ_CULL");
                 }
             }
@@ -218,128 +257,157 @@ namespace GPUDrivenTerrainLearn
 
         private bool _isBoundsBufferOn;
 
-        public bool isBoundsBufferOn{
-            set{
-                if(value){
+        public bool isBoundsBufferOn
+        {
+            set
+            {
+                if (value)
+                {
                     _computeShader.EnableKeyword("BOUNDS_DEBUG");
-                }else{
+                }
+                else
+                {
                     _computeShader.DisableKeyword("BOUNDS_DEBUG");
                 }
                 _isBoundsBufferOn = value;
-            }get{
+            }
+            get
+            {
                 return _isBoundsBufferOn;
             }
         }
 
-        private void LogPatchArgs(){
+        private void LogPatchArgs()
+        {
             var data = new uint[5];
             _patchIndirectArgs.GetData(data);
             Debug.Log(data[1]);
         }
 
- 
 
-        private void ClearBufferCounter(){
-            _commandBuffer.SetBufferCounterValue(_maxLODNodeList,(uint)_maxLODNodeList.count);
-            _commandBuffer.SetBufferCounterValue(_nodeListA,0);
-            _commandBuffer.SetBufferCounterValue(_nodeListB,0);
-            _commandBuffer.SetBufferCounterValue(_finalNodeListBuffer,0);
-            _commandBuffer.SetBufferCounterValue(_culledPatchBuffer,0);
-            _commandBuffer.SetBufferCounterValue(_patchBoundsBuffer,0);
+
+        private void ClearBufferCounter()
+        {
+            _commandBuffer.SetBufferCounterValue(_maxLODNodeList, (uint)_maxLODNodeList.count);
+            _commandBuffer.SetBufferCounterValue(_nodeListA, 0);
+            _commandBuffer.SetBufferCounterValue(_nodeListB, 0);
+            _commandBuffer.SetBufferCounterValue(_finalNodeListBuffer, 0);
+            _commandBuffer.SetBufferCounterValue(_culledPatchBuffer, 0);
+            _commandBuffer.SetBufferCounterValue(_patchBoundsBuffer, 0);
         }
 
-        private void UpdateCameraFrustumPlanes(Camera camera){
-            GeometryUtility.CalculateFrustumPlanes(camera,_cameraFrustumPlanes);
-            for(var i = 0; i < _cameraFrustumPlanes.Length; i ++){
+        private void UpdateCameraFrustumPlanes(Camera camera)
+        {
+            GeometryUtility.CalculateFrustumPlanes(camera, _cameraFrustumPlanes);
+            for (var i = 0; i < _cameraFrustumPlanes.Length; i++)
+            {
                 Vector4 v4 = (Vector4)_cameraFrustumPlanes[i].normal;
                 v4.w = _cameraFrustumPlanes[i].distance;
                 _cameraFrustumPlanesV4[i] = v4;
             }
-            _computeShader.SetVectorArray(ShaderConstants.CameraFrustumPlanes,_cameraFrustumPlanesV4);
+            _computeShader.SetVectorArray(ShaderConstants.CameraFrustumPlanes, _cameraFrustumPlanesV4);
         }
 
-        public void Dispatch(){
+        public void Dispatch()
+        {
             var camera = Camera.main;
-            
+
             //clear
             _commandBuffer.Clear();
             this.ClearBufferCounter();
 
             this.UpdateCameraFrustumPlanes(camera);
 
-            if(_isNodeEvaluationCDirty){
+            if (_isNodeEvaluationCDirty)
+            {
                 _isNodeEvaluationCDirty = false;
-                _commandBuffer.SetComputeVectorParam(_computeShader,ShaderConstants.NodeEvaluationC,_nodeEvaluationC);
+                _commandBuffer.SetComputeVectorParam(_computeShader, ShaderConstants.NodeEvaluationC, _nodeEvaluationC);
             }
 
-            _commandBuffer.SetComputeVectorParam(_computeShader,ShaderConstants.CameraPositionWS,camera.transform.position);
-            _commandBuffer.SetComputeVectorParam(_computeShader,ShaderConstants.WorldSize,_asset.worldSize);
+            _commandBuffer.SetComputeVectorParam(_computeShader, ShaderConstants.CameraPositionWS, camera.transform.position);
+            _commandBuffer.SetComputeVectorParam(_computeShader, ShaderConstants.WorldSize, _asset.worldSize);
 
             //四叉树分割计算得到初步的Patch列表
-            _commandBuffer.CopyCounterValue(_maxLODNodeList,_indirectArgsBuffer,0);
+            _commandBuffer.CopyCounterValue(_maxLODNodeList, _indirectArgsBuffer, 0);
             ComputeBuffer consumeNodeList = _nodeListA;
             ComputeBuffer appendNodeList = _nodeListB;
-            for(var lod = TerrainAsset.MAX_LOD; lod >=0; lod --){
-                _commandBuffer.SetComputeIntParam(_computeShader,ShaderConstants.PassLOD,lod);
-                if(lod == TerrainAsset.MAX_LOD){
-                    _commandBuffer.SetComputeBufferParam(_computeShader,_kernelOfTraverseQuadTree,ShaderConstants.ConsumeNodeList,_maxLODNodeList);
-                }else{
-                    _commandBuffer.SetComputeBufferParam(_computeShader,_kernelOfTraverseQuadTree,ShaderConstants.ConsumeNodeList,consumeNodeList);
+            for (var lod = TerrainAsset.MAX_LOD; lod >= 0; lod--)
+            {
+                _commandBuffer.SetComputeIntParam(_computeShader, ShaderConstants.PassLOD, lod);
+                if (lod == TerrainAsset.MAX_LOD)
+                {
+                    _commandBuffer.SetComputeBufferParam(_computeShader, _kernelOfTraverseQuadTree, ShaderConstants.ConsumeNodeList, _maxLODNodeList);
                 }
-                _commandBuffer.SetComputeBufferParam(_computeShader,_kernelOfTraverseQuadTree,ShaderConstants.AppendNodeList,appendNodeList);
-                _commandBuffer.DispatchCompute(_computeShader,_kernelOfTraverseQuadTree,_indirectArgsBuffer,0);
-                _commandBuffer.CopyCounterValue(appendNodeList,_indirectArgsBuffer,0);
+                else
+                {
+                    _commandBuffer.SetComputeBufferParam(_computeShader, _kernelOfTraverseQuadTree, ShaderConstants.ConsumeNodeList, consumeNodeList);
+                }
+                _commandBuffer.SetComputeBufferParam(_computeShader, _kernelOfTraverseQuadTree, ShaderConstants.AppendNodeList, appendNodeList);
+                _commandBuffer.DispatchCompute(_computeShader, _kernelOfTraverseQuadTree, _indirectArgsBuffer, 0);
+                _commandBuffer.CopyCounterValue(appendNodeList, _indirectArgsBuffer, 0);
                 var temp = consumeNodeList;
                 consumeNodeList = appendNodeList;
                 appendNodeList = temp;
             }
             //生成LodMap
-            _commandBuffer.DispatchCompute(_computeShader,_kernelOfBuildLodMap,20,20,1);
+            _commandBuffer.DispatchCompute(_computeShader, _kernelOfBuildLodMap, 20, 20, 1);
 
 
             //生成Patch
-            _commandBuffer.CopyCounterValue(_finalNodeListBuffer,_indirectArgsBuffer,0);
-            _commandBuffer.DispatchCompute(_computeShader,_kernelOfBuildPatches,_indirectArgsBuffer,0);
-            _commandBuffer.CopyCounterValue(_culledPatchBuffer,_patchIndirectArgs,4);
-            if(isBoundsBufferOn){
-                _commandBuffer.CopyCounterValue(_patchBoundsBuffer,_patchBoundsIndirectArgs,4);
+            _commandBuffer.CopyCounterValue(_finalNodeListBuffer, _indirectArgsBuffer, 0);
+            _commandBuffer.DispatchCompute(_computeShader, _kernelOfBuildPatches, _indirectArgsBuffer, 0);
+            _commandBuffer.CopyCounterValue(_culledPatchBuffer, _patchIndirectArgs, 4);
+            if (isBoundsBufferOn)
+            {
+                _commandBuffer.CopyCounterValue(_patchBoundsBuffer, _patchBoundsIndirectArgs, 4);
             }
             Graphics.ExecuteCommandBuffer(_commandBuffer);
 
             // this.LogPatchArgs();
         }
 
-        public ComputeBuffer patchIndirectArgs{
-            get{
+        public ComputeBuffer patchIndirectArgs
+        {
+            get
+            {
                 return _patchIndirectArgs;
             }
         }
 
-        public ComputeBuffer culledPatchBuffer{
-            get{
+        public ComputeBuffer culledPatchBuffer
+        {
+            get
+            {
                 return _culledPatchBuffer;
             }
         }
 
-        public ComputeBuffer nodeIDList{
-            get{
+        public ComputeBuffer nodeIDList
+        {
+            get
+            {
                 return _finalNodeListBuffer;
             }
         }
-        public ComputeBuffer patchBoundsBuffer{
-            get{
+        public ComputeBuffer patchBoundsBuffer
+        {
+            get
+            {
                 return _patchBoundsBuffer;
             }
         }
 
-        public ComputeBuffer boundsIndirectArgs{
-            get{
+        public ComputeBuffer boundsIndirectArgs
+        {
+            get
+            {
                 return _patchBoundsIndirectArgs;
             }
         }
 
 
-        private class ShaderConstants{
+        private class ShaderConstants
+        {
 
             public static readonly int WorldSize = Shader.PropertyToID("_WorldSize");
             public static readonly int CameraPositionWS = Shader.PropertyToID("_CameraPositionWS");

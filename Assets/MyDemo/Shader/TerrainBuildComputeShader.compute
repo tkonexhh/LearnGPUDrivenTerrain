@@ -1,0 +1,143 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel TraverseQuadTree
+#pragma kernel BuildPatches
+
+#include "./TerrainInput.hlsl"
+
+Texture2D<float4> _HeightMap;
+
+
+//xy 代表Node的二维索引
+ConsumeStructuredBuffer<uint2> ConsumeNodeList;
+AppendStructuredBuffer<uint2> AppendNodeList;
+//xy 代表Node的二维索引 z 代表LOD
+AppendStructuredBuffer<uint3> AppendFinalNodeList;
+//四叉树遍历完成后，合适的节点存放在这里
+StructuredBuffer<uint3> FinalNodeList;
+
+//表示TraverseQuadTree kernel执行的LOD级别
+uniform uint PassLOD;
+
+//*****裁剪相关变量*******/
+AppendStructuredBuffer<RenderPatch> CulledPatchList;
+
+
+
+
+//
+/**
+记录了每个Lod级别的(nodeSize,patchExtent,nodeCount,sectorCountPerNode) 目前0-5 6层
+
+其中:
+- nodeSize为Node的边长(米)
+- patchExtent等于nodeSize/16
+- nodeCount等于WorldSize/nodeSize
+- sectorCountPerNode等于2^lod
+**/
+uniform float4 WorldLodParams[6];
+
+uniform uint NodeIDOffsetOfLOD[6];
+
+float GetNodeSize(uint lod)
+{
+    return WorldLodParams[lod].x;
+}
+
+float GetNodeCount(uint lod)
+{
+    return WorldLodParams[lod].z;
+}
+
+float2 GetNodePositionWS2(uint2 nodeLoc, uint mip)
+{
+    float nodeMeterSize = GetNodeSize(mip);
+    float nodeCount = GetNodeCount(mip);
+    float2 nodePositionWS = ((float2)nodeLoc - (nodeCount - 1) * 0.5) * nodeMeterSize;
+    return float2(0, 0);
+    return nodePositionWS;
+}
+
+float3 GetNodePositionWS(uint2 nodeLoc, uint lod)
+{
+    float2 nodePositionWS = GetNodePositionWS2(nodeLoc, lod);
+    float2 minMaxHeight = 1;//MinMaxHeightTexture.mips[lod + 3][nodeLoc].xy;
+    float y = (minMaxHeight.x + minMaxHeight.y) * 0.5 * 1;//_WorldSize.y;
+    return float3(0, 0, 0);
+    return float3(nodePositionWS.x, y, nodePositionWS.y);
+}
+
+//决定是否细分Node
+/*f = d / (n * c);
+d=摄像机到节点中心距离
+n=节点边长
+c=用户控制系数*/
+bool EvaluateNode(uint2 nodeLoc, uint lod)
+{
+    // float3 positionWS = GetNodePositionWS(nodeLoc, lod);
+    // float d = distance(_CameraPositionWS, positionWS);
+    // float n = GetNodeSize(lod);
+    // float f = d / (n * 1);
+    // //可以四分
+    // if (f < 1)
+    // {
+    //     return true;
+    // }
+    return false;
+}
+
+
+//将三维转换为1维的
+uint GetNodeId(uint3 nodeLoc)
+{
+    return NodeIDOffsetOfLOD[nodeLoc.z] + nodeLoc.y * GetNodeCount(nodeLoc.z) + nodeLoc.x;
+}
+
+
+//遍历四叉树，进行节点评价，生成AppendFinalNodeList和NodeDescriptors
+[numthreads(1, 1, 1)]
+void TraverseQuadTree(uint3 id: SV_DispatchThreadID)
+{
+    uint2 nodeLoc = ConsumeNodeList.Consume();
+    if (PassLOD > 0 && EvaluateNode(nodeLoc, PassLOD))
+    {
+        //四分
+        AppendNodeList.Append(nodeLoc * 2);
+        AppendNodeList.Append(nodeLoc * 2 + uint2(1, 0));
+        AppendNodeList.Append(nodeLoc * 2 + uint2(0, 1));
+        AppendNodeList.Append(nodeLoc * 2 + uint2(1, 1));
+    }
+    else
+    {
+        //不需要分化 全部加入到FinalNode
+        AppendFinalNodeList.Append(uint3(nodeLoc, PassLOD));
+    }
+}
+
+RenderPatch CreatePatch(uint3 nodeLoc, uint2 patchOffset)
+{
+    uint lod = nodeLoc.z;
+    float nodeMeterSize = GetNodeSize(lod);
+    float patchMeterSize = nodeMeterSize / PATCH_COUNT_PER_NODE;
+    float2 nodePositionWS = GetNodePositionWS2(nodeLoc.xy, lod);
+
+    // uint2 patchLoc = nodeLoc.xy * PATCH_COUNT_PER_NODE + patchOffset;
+    //经测试，当min和max相差较小时，RG32似乎还是存在精度问题
+    // float2 minMaxHeight = 1;//MinMaxHeightTexture.mips[lod][patchLoc].rg * _WorldSize.y + float2(-_BoundsHeightRedundance, _BoundsHeightRedundance);
+    RenderPatch patch;
+    patch.lod = lod;
+    patch.position = nodePositionWS + (patchOffset - (PATCH_COUNT_PER_NODE - 1) * 0.5) * patchMeterSize;
+    // patch.minMaxHeight = minMaxHeight;
+    // patch.lodTrans = 0;
+    return patch;
+}
+
+
+[numthreads(8, 8, 1)]
+void BuildPatches(uint3 id: SV_DispatchThreadID, uint3 groupId: SV_GroupID, uint3 groupThreadId: SV_GroupThreadID)
+{
+    uint3 nodeLoc = FinalNodeList[groupId.x];
+    uint2 patchOffset = groupThreadId.xy;
+    //生成Patch
+    RenderPatch patch = CreatePatch(nodeLoc, patchOffset);
+    CulledPatchList.Append(patch);
+}

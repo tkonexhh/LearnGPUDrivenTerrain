@@ -38,7 +38,7 @@ RenderSettings:
   m_ReflectionIntensity: 1
   m_CustomReflection: {fileID: 0}
   m_Sun: {fileID: 0}
-  m_IndirectSpecularColor: {r: 0.18386807, g: 0.22901505, b: 0.30311203, a: 1}
+  m_IndirectSpecularColor: {r: 0.18386817, g: 0.22901483, b: 0.3031113, a: 1}
   m_UseRadianceAmbientProbe: 0
 --- !u!157 &3
 LightmapSettings:
@@ -215,7 +215,6 @@ Transform:
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 1}
   m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
-  m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
   m_RootOrder: 3
@@ -252,9 +251,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_UsePipelineSettings: 1
   m_AdditionalLightsShadowResolutionTier: 2
-  m_LightLayerMask: 1
-  m_CustomShadowLayers: 0
-  m_ShadowLayerMask: 1
 --- !u!108 &863759722
 Light:
   m_ObjectHideFlags: 0
@@ -327,7 +323,6 @@ Transform:
   m_LocalRotation: {x: 0.9659258, y: 0, z: 0, w: 0.2588191}
   m_LocalPosition: {x: 0, y: 3, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
   m_RootOrder: 1
@@ -363,7 +358,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   terrainAsset: {fileID: 11400000, guid: 72f6584782b5749ff9ab045d609bcbb9, type: 2}
   isFrustumCullEnabled: 1
-  isHizOcclusionCullingEnabled: 1
+  isHizOcclusionCullingEnabled: 0
   hizDepthBias: 0.2
   boundsHeightRedundance: 4
   distanceEvaluation: 1.2
@@ -382,7 +377,6 @@ Transform:
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
   m_RootOrder: 2
@@ -468,7 +462,6 @@ Transform:
   m_LocalRotation: {x: -0.130007, y: 0, z: 0, w: 0.99151313}
   m_LocalPosition: {x: -1447, y: 1318, z: -2640}
   m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
   m_RootOrder: 0
