@@ -21,6 +21,9 @@ public class TerrainBuilder : System.IDisposable
 
     private ComputeBuffer m_FinalNodeListBuffer;//CS 中的AppendFinalNodeList FinalNodeList
 
+    private float _nodeEvaluationC = 1;//节点分化评价C
+    private bool _isNodeEvaluationCDirty = true;
+
     public ComputeBuffer patchIndirectArgs => m_PatchIndirectArgs;
     public ComputeBuffer culledPatchBuffer => m_CulledPatchBuffer;
 
@@ -32,6 +35,18 @@ public class TerrainBuilder : System.IDisposable
     /// </summary>
     private int m_MaxNodeBufferSize = 200;
     private int _tempNodeBufferSize = 50;
+
+
+
+
+    public float nodeEvalDistance
+    {
+        set
+        {
+            _nodeEvaluationC = value;
+            _isNodeEvaluationCDirty = true;
+        }
+    }
 
     public TerrainBuilder(TerrainAsset asset)
     {
@@ -162,6 +177,12 @@ public class TerrainBuilder : System.IDisposable
         m_CommandBuffer.Clear();
         this.ClearBufferCounter();
 
+        if (_isNodeEvaluationCDirty)//评价C 可以提前确定好 
+        {
+            _isNodeEvaluationCDirty = false;
+            m_CommandBuffer.SetComputeFloatParam(m_ComputeShader, ShaderConstants.NodeEvaluationC, _nodeEvaluationC);
+        }
+
         m_CommandBuffer.SetComputeVectorParam(m_ComputeShader, ShaderConstants.CameraPositionWS, camera.transform.position);
 
 
@@ -238,6 +259,7 @@ public class TerrainBuilder : System.IDisposable
         public static readonly int FinalNodeList = Shader.PropertyToID("FinalNodeList");
         public static readonly int AppendNodeList = Shader.PropertyToID("AppendNodeList");
         public static readonly int ConsumeNodeList = Shader.PropertyToID("ConsumeNodeList");
+        public static readonly int NodeEvaluationC = Shader.PropertyToID("_NodeEvaluationC");
         public static readonly int WorldLodParams = Shader.PropertyToID("WorldLodParams");
         public static readonly int NodeIDOffsetOfLOD = Shader.PropertyToID("NodeIDOffsetOfLOD");
     }

@@ -19,6 +19,9 @@ StructuredBuffer<uint3> FinalNodeList;
 uniform uint PassLOD;
 uniform float3 _CameraPositionWS;//相机的位置
 
+//节点分化评价C
+uniform float _NodeEvaluationC;
+
 //*****裁剪相关变量*******/
 AppendStructuredBuffer<RenderPatch> CulledPatchList;
 
@@ -75,7 +78,7 @@ bool EvaluateNode(uint2 nodeLoc, uint lod)
     float3 positionWS = GetNodePositionWS(nodeLoc, lod);
     float d = distance(_CameraPositionWS, positionWS);
     float n = GetNodeSize(lod);
-    float f = d / (n * 1);
+    float f = d / (n * _NodeEvaluationC);
     //可以四分
     if (f < 1)
     {
