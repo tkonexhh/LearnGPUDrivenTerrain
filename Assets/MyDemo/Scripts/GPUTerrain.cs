@@ -13,20 +13,6 @@ public class GPUTerrain : MonoBehaviour
         m_TerrainBuilder = new TerrainBuilder(terrainAsset);
         InitMaterial();
 
-        Mesh mesh = TerrainAsset.patchMesh;
-
-        // float grid = (0.5f * 16);
-        // for (int y = 0; y < 5; y++)
-        // {
-        //     for (int x = 0; x < 5; x++)
-        //     {
-        //         GameObject obj = new GameObject();
-        //         obj.name = x + "-" + y;
-        //         obj.transform.position = new Vector3(x * grid, 0, y * grid);
-        //         obj.AddComponent<MeshFilter>().mesh = mesh;
-        //         obj.AddComponent<MeshRenderer>().material = m_TerrainMaterial;
-        //     }
-        // }
     }
 
     private void InitMaterial()
@@ -37,8 +23,8 @@ public class GPUTerrain : MonoBehaviour
             material.SetTexture("_MainTex", terrainAsset.albedoMap);
             material.SetTexture("_HeightMap", terrainAsset.heightMap);
             material.SetTexture("_NormalMap", terrainAsset.normalMap);
-            // material.SetBuffer("PatchList", m_TerrainBuilder.culledPatchBuffer);
-            Debug.LogError(terrainAsset.worldSize);
+            material.SetBuffer("PatchList", m_TerrainBuilder.culledPatchBuffer);
+            // Debug.LogError(terrainAsset.worldSize);
             material.SetVector("_WorldSize", terrainAsset.worldSize);
             m_TerrainMaterial = material;
         }

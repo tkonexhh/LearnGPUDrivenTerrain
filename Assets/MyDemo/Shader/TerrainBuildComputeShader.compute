@@ -53,16 +53,14 @@ float2 GetNodePositionWS2(uint2 nodeLoc, uint mip)
     float nodeMeterSize = GetNodeSize(mip);
     float nodeCount = GetNodeCount(mip);
     float2 nodePositionWS = ((float2)nodeLoc - (nodeCount - 1) * 0.5) * nodeMeterSize;
-    // return float2(0, 0);
     return nodePositionWS;
 }
 
 float3 GetNodePositionWS(uint2 nodeLoc, uint lod)
 {
     float2 nodePositionWS = GetNodePositionWS2(nodeLoc, lod);
-    float2 minMaxHeight = 1;//MinMaxHeightTexture.mips[lod + 3][nodeLoc].xy;
-    float y = (minMaxHeight.x + minMaxHeight.y) * 0.5 * 1;//_WorldSize.y;
-    // return float3(0, 0, 0);
+    // float2 minMaxHeight = 1;//MinMaxHeightTexture.mips[lod + 3][nodeLoc].xy;
+    // float y = (minMaxHeight.x + minMaxHeight.y) * 0.5 * 1;//_WorldSize.y;
     return float3(nodePositionWS.x, 0, nodePositionWS.y);
 }
 
@@ -86,11 +84,11 @@ bool EvaluateNode(uint2 nodeLoc, uint lod)
 }
 
 
-//将三维转换为1维的
-uint GetNodeId(uint3 nodeLoc)
-{
-    return NodeIDOffsetOfLOD[nodeLoc.z] + nodeLoc.y * GetNodeCount(nodeLoc.z) + nodeLoc.x;
-}
+// //将三维转换为1维的
+// uint GetNodeId(uint3 nodeLoc)
+// {
+//     return NodeIDOffsetOfLOD[nodeLoc.z] + nodeLoc.y * GetNodeCount(nodeLoc.z) + nodeLoc.x;
+// }
 
 
 //遍历四叉树，进行节点评价，生成AppendFinalNodeList和NodeDescriptors
@@ -116,8 +114,11 @@ void TraverseQuadTree(uint3 id: SV_DispatchThreadID)
 RenderPatch CreatePatch(uint3 nodeLoc, uint2 patchOffset)
 {
     uint lod = nodeLoc.z;
+    //当前LOD下的Node大小
     float nodeMeterSize = GetNodeSize(lod);
+    //当前LOD下的Patch大小 一排是8个
     float patchMeterSize = nodeMeterSize / PATCH_COUNT_PER_NODE;
+    //得到当前Node的坐标
     float2 nodePositionWS = GetNodePositionWS2(nodeLoc.xy, lod);
 
     // uint2 patchLoc = nodeLoc.xy * PATCH_COUNT_PER_NODE + patchOffset;
@@ -125,6 +126,7 @@ RenderPatch CreatePatch(uint3 nodeLoc, uint2 patchOffset)
     // float2 minMaxHeight = 1;//MinMaxHeightTexture.mips[lod][patchLoc].rg * _WorldSize.y + float2(-_BoundsHeightRedundance, _BoundsHeightRedundance);
     RenderPatch patch;
     patch.lod = lod;
+    //局部坐标+node世界坐标
     patch.position = nodePositionWS + (patchOffset - (PATCH_COUNT_PER_NODE - 1) * 0.5) * patchMeterSize;
     // patch.minMaxHeight = minMaxHeight;
     // patch.lodTrans = 0;

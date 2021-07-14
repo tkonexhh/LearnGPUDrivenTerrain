@@ -113,36 +113,36 @@ public class TerrainBuilder : System.IDisposable
         记录了每个Lod级别的(nodeSize,patchExtent,nodeCount,sectorCountPerNode) 目前0-5 6层
         其中:
         - nodeSize为Node的边长(米)
-        - patchExtent等于nodeSize/16
+        - patchExtent等于nodeSize/16  
         - nodeCount等于WorldSize/nodeSize
         - sectorCountPerNode等于2^lod
         */
         for (var lod = TerrainAsset.MAX_LOD; lod >= 0; lod--)
         {
-            var nodeSize = wSize / nodeCount;
-            var patchExtent = nodeSize / TerrainDefine.PatchSize;
-            var sectorCountPerNode = (int)Mathf.Pow(2, lod);
+            var nodeSize = wSize / nodeCount;//2048 1024 512 256 128 64
+            var patchExtent = nodeSize / TerrainDefine.PatchSize;//128 64 32 16 8 4  
+            var sectorCountPerNode = (int)Mathf.Pow(2, lod);//32 16 8 4 2 1
             worldLODParams[lod] = new Vector4(nodeSize, patchExtent, nodeCount, sectorCountPerNode);
-            nodeCount *= 2;
+            nodeCount *= 2;//5 10 20 40 80 160
         }
         m_ComputeShader.SetVectorArray(ShaderConstants.WorldLodParams, worldLODParams);
 
 
 
-        int[] nodeIDOffsetLOD = new int[(TerrainAsset.MAX_LOD + 1) * 4];//24
-        int nodeIdOffset = 0;
-        for (int lod = TerrainAsset.MAX_LOD; lod >= 0; lod--)
-        {
-            nodeIDOffsetLOD[lod * 4] = nodeIdOffset;
-            nodeIdOffset += (int)(worldLODParams[lod].z * worldLODParams[lod].z);
-        }
-        //5:160*160 
-        //4:160*160+80*80 
-        //3:160*160+80*80+40*40 
-        //2:160*160+80*80+40*40+20*20 
-        //1:160*160+80*80+40*40+20*20+10*10 
-        //0:160*160+80*80+40*40+20*20+10*10+5*5 = 34125
-        m_ComputeShader.SetInts(ShaderConstants.NodeIDOffsetOfLOD, nodeIDOffsetLOD);
+        // int[] nodeIDOffsetLOD = new int[(TerrainAsset.MAX_LOD + 1) * 4];//24
+        // int nodeIdOffset = 0;
+        // for (int lod = TerrainAsset.MAX_LOD; lod >= 0; lod--)
+        // {
+        //     nodeIDOffsetLOD[lod * 4] = nodeIdOffset;
+        //     nodeIdOffset += (int)(worldLODParams[lod].z * worldLODParams[lod].z);
+        // }
+        // //5:160*160 
+        // //4:160*160+80*80 
+        // //3:160*160+80*80+40*40 
+        // //2:160*160+80*80+40*40+20*20 
+        // //1:160*160+80*80+40*40+20*20+10*10 
+        // //0:160*160+80*80+40*40+20*20+10*10+5*5 = 34125
+        // m_ComputeShader.SetInts(ShaderConstants.NodeIDOffsetOfLOD, nodeIDOffsetLOD);
     }
 
     private void ClearBufferCounter()

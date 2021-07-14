@@ -53,23 +53,23 @@ Shader "XHH/Terrain"
                 v2f o;
 
                 float3 inVertex = v.vertex;
+
                 RenderPatch patch = PatchList[v.instanceID];
                 uint lod = patch.lod;
                 float scale = pow(2, lod);
                 inVertex.xz *= scale;
                 inVertex.xz += patch.position;
 
-                //inVertex.xz += patch.position;
-
                 //这里的UV是如何处理的？
                 float2 heightUV = (inVertex.xz + (_WorldSize.xz * 0.5) + 0.5) / (_WorldSize.xz + 1);
-                float height = tex2Dlod(_HeightMap, float4(v.uv, 0, 0)).r;
-                inVertex.y = height * 1;//_WorldSize.y;
+                float height = tex2Dlod(_HeightMap, float4(heightUV, 0, 0)).r;
+                o.color = height;
+                inVertex.y = height * _WorldSize.y;
                 
                 
                 o.vertex = TransformObjectToHClip(inVertex.xyz);
-                o.color = heightUV;
-                o.color = inVertex.y;
+                // o.color = heightUV;
+                
                 o.uv = v.uv * scale * 8;
                 return o;
             }
