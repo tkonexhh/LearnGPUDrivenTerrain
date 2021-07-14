@@ -17,6 +17,7 @@ StructuredBuffer<uint3> FinalNodeList;
 
 //表示TraverseQuadTree kernel执行的LOD级别
 uniform uint PassLOD;
+uniform float3 _CameraPositionWS;//相机的位置
 
 //*****裁剪相关变量*******/
 AppendStructuredBuffer<RenderPatch> CulledPatchList;
@@ -71,15 +72,15 @@ n=节点边长
 c=用户控制系数*/
 bool EvaluateNode(uint2 nodeLoc, uint lod)
 {
-    // float3 positionWS = GetNodePositionWS(nodeLoc, lod);
-    // float d = distance(_CameraPositionWS, positionWS);
-    // float n = GetNodeSize(lod);
-    // float f = d / (n * 1);
-    // //可以四分
-    // if (f < 1)
-    // {
-    //     return true;
-    // }
+    float3 positionWS = GetNodePositionWS(nodeLoc, lod);
+    float d = distance(_CameraPositionWS, positionWS);
+    float n = GetNodeSize(lod);
+    float f = d / (n * 1);
+    //可以四分
+    if (f < 1)
+    {
+        return true;
+    }
     return false;
 }
 

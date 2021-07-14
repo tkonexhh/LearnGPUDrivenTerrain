@@ -157,9 +157,13 @@ public class TerrainBuilder : System.IDisposable
 
     public void Dispatch()
     {
+        var camera = Camera.main;
         //clear
         m_CommandBuffer.Clear();
         this.ClearBufferCounter();
+
+        m_CommandBuffer.SetComputeVectorParam(m_ComputeShader, ShaderConstants.CameraPositionWS, camera.transform.position);
+
 
         //四叉树分割计算得到初步的Patch列表
         m_CommandBuffer.CopyCounterValue(m_MaxLODNodeList, m_IndirectArgsBuffer, 0);
@@ -228,6 +232,7 @@ public class TerrainBuilder : System.IDisposable
 
     private class ShaderConstants
     {
+        public static readonly int CameraPositionWS = Shader.PropertyToID("_CameraPositionWS");
         public static readonly int PassLOD = Shader.PropertyToID("PassLOD");
         public static readonly int AppendFinalNodeList = Shader.PropertyToID("AppendFinalNodeList");
         public static readonly int FinalNodeList = Shader.PropertyToID("FinalNodeList");
