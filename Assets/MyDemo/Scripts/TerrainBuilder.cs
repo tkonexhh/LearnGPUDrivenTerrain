@@ -4,7 +4,7 @@ using UnityEngine;
 using UnityEngine.Rendering;
 using Unity.Mathematics;
 
-public class TerrainBuilder
+public class TerrainBuilder : System.IDisposable
 {
     private TerrainAsset m_TerrainAsset;
 
@@ -19,7 +19,7 @@ public class TerrainBuilder
     private ComputeBuffer m_PatchIndirectArgs;
     private ComputeBuffer m_CulledPatchBuffer;
 
-    private ComputeBuffer m_FinalNodeListBuffer;//compute 中的AppendFinalNodeList
+    private ComputeBuffer m_FinalNodeListBuffer;//CS 中的AppendFinalNodeList FinalNodeList
 
     public ComputeBuffer patchIndirectArgs => m_PatchIndirectArgs;
     public ComputeBuffer culledPatchBuffer => m_CulledPatchBuffer;
@@ -74,18 +74,33 @@ public class TerrainBuilder
                 index++;
             }
         }
+        //初始赋值 5*5的Node
         m_MaxLODNodeList.SetData(datas);
     }
 
     private void InitKernels()
     {
+        //设置kernel
+        //绑定相关变量 buffer
         m_KernelOfTraverseQuadTree = m_ComputeShader.FindKernel("TraverseQuadTree");
-        m_ComputeShader.SetBuffer(m_KernelOfTraverseQuadTree, ShaderConstants.AppendFinalNodeList, m_FinalNodeListBuffer);
-
-
         m_KernelOfBuildPatches = m_ComputeShader.FindKernel("BuildPatches");
-        m_ComputeShader.SetBuffer(m_KernelOfBuildPatches, ShaderConstants.FinalNodeList, m_FinalNodeListBuffer);
-        m_ComputeShader.SetBuffer(m_KernelOfBuildPatches, "CulledPatchList", m_CulledPatchBuffer);
+
+        this.BindComputeShader(m_KernelOfTraverseQuadTree);
+        this.BindComputeShader(m_KernelOfBuildPatches);
+    }
+
+    private void BindComputeShader(int kernelIndex)
+    {
+        if (kernelIndex == m_KernelOfTraverseQuadTree)
+        {
+            m_ComputeShader.SetBuffer(m_KernelOfTraverseQuadTree, ShaderConstants.AppendFinalNodeList, m_FinalNodeListBuffer);
+        }
+        else if (kernelIndex == m_KernelOfBuildPatches)
+        {
+            //TraverseQuadTree 中的AppendFinalNodeList 填入到 FinalNodeList
+            m_ComputeShader.SetBuffer(m_KernelOfBuildPatches, ShaderConstants.FinalNodeList, m_FinalNodeListBuffer);
+            m_ComputeShader.SetBuffer(m_KernelOfBuildPatches, "CulledPatchList", m_CulledPatchBuffer);
+        }
     }
 
 
@@ -152,30 +167,63 @@ public class TerrainBuilder
         ComputeBuffer appendNodeList = _nodeListB;
         for (var lod = TerrainAsset.MAX_LOD; lod >= 0; lod--)//6层LOD
         {
+            //CS 设置LOD
             m_CommandBuffer.SetComputeIntParam(m_ComputeShader, ShaderConstants.PassLOD, lod);
-            if (lod == TerrainAsset.MAX_LOD)
-            {
-                m_CommandBuffer.SetComputeBufferParam(m_ComputeShader, m_KernelOfTraverseQuadTree, ShaderConstants.ConsumeNodeList, m_MaxLODNodeList);
-            }
-            else
-            {
-                m_CommandBuffer.SetComputeBufferParam(m_ComputeShader, m_KernelOfTraverseQuadTree, ShaderConstants.ConsumeNodeList, consumeNodeList);
-            }
+            //最大LOD的Node
+            //一开始的Node 5*5 入栈
+            m_CommandBuffer.SetComputeBufferParam(m_ComputeShader, m_KernelOfTraverseQuadTree, ShaderConstants.ConsumeNodeList, lod == TerrainAsset.MAX_LOD ? m_MaxLODNodeList : consumeNodeList);
             m_CommandBuffer.SetComputeBufferParam(m_ComputeShader, m_KernelOfTraverseQuadTree, ShaderConstants.AppendNodeList, appendNodeList);
+            //执行CS m_IndirectArgsBuffer是线程组的数量
             m_CommandBuffer.DispatchCompute(m_ComputeShader, m_KernelOfTraverseQuadTree, m_IndirectArgsBuffer, 0);
             m_CommandBuffer.CopyCounterValue(appendNodeList, m_IndirectArgsBuffer, 0);
             var temp = consumeNodeList;
             consumeNodeList = appendNodeList;
             appendNodeList = temp;
+
         }
 
-        // m_CommandBuffer.CopyCounterValue(m_CulledPatchBuffer, m_PatchIndirectArgs, 4);
+
 
         //生成Patch
+        //FinalNodeList的Counter拷贝给IndirectArgs，代表我们要起的线程组数量
         m_CommandBuffer.CopyCounterValue(m_FinalNodeListBuffer, m_IndirectArgsBuffer, 0);
         m_CommandBuffer.DispatchCompute(m_ComputeShader, m_KernelOfBuildPatches, m_IndirectArgsBuffer, 0);
+        m_CommandBuffer.CopyCounterValue(m_CulledPatchBuffer, m_PatchIndirectArgs, 4);
 
         Graphics.ExecuteCommandBuffer(m_CommandBuffer);
+
+    }
+
+    private void LogMaxArg()
+    {
+        var maxLODNodeCount = TerrainAsset.MAX_LOD_NODE_COUNT;
+        uint2[] datas = new uint2[maxLODNodeCount * maxLODNodeCount];
+        m_MaxLODNodeList.GetData(datas);
+        for (int i = 0; i < datas.Length; i++)
+        {
+            Debug.LogError(datas[i].x + "===" + datas[i].y);
+        }
+    }
+
+    private void LogFinalNode()
+    {
+        Debug.LogError("------------");
+        // var maxLODNodeCount = TerrainAsset.MAX_LOD_NODE_COUNT;
+        uint3[] datas = new uint3[200];
+        m_FinalNodeListBuffer.GetData(datas);
+        for (int i = 0; i < datas.Length; i++)
+        {
+            Debug.LogError(datas[i].x + "===" + datas[i].y + "===" + datas[i].z);
+        }
+    }
+
+
+    public void Dispose()
+    {
+        m_FinalNodeListBuffer.Dispose();
+        m_MaxLODNodeList.Dispose();
+        _nodeListA.Dispose();
+        _nodeListB.Dispose();
     }
 
     private class ShaderConstants

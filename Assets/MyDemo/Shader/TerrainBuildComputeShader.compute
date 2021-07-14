@@ -53,7 +53,7 @@ float2 GetNodePositionWS2(uint2 nodeLoc, uint mip)
     float nodeMeterSize = GetNodeSize(mip);
     float nodeCount = GetNodeCount(mip);
     float2 nodePositionWS = ((float2)nodeLoc - (nodeCount - 1) * 0.5) * nodeMeterSize;
-    return float2(0, 0);
+    // return float2(0, 0);
     return nodePositionWS;
 }
 
@@ -62,8 +62,8 @@ float3 GetNodePositionWS(uint2 nodeLoc, uint lod)
     float2 nodePositionWS = GetNodePositionWS2(nodeLoc, lod);
     float2 minMaxHeight = 1;//MinMaxHeightTexture.mips[lod + 3][nodeLoc].xy;
     float y = (minMaxHeight.x + minMaxHeight.y) * 0.5 * 1;//_WorldSize.y;
-    return float3(0, 0, 0);
-    return float3(nodePositionWS.x, y, nodePositionWS.y);
+    // return float3(0, 0, 0);
+    return float3(nodePositionWS.x, 0, nodePositionWS.y);
 }
 
 //决定是否细分Node
@@ -132,6 +132,7 @@ RenderPatch CreatePatch(uint3 nodeLoc, uint2 patchOffset)
 }
 
 
+// 8,8 的原因是 一个Node由8*8个Patch组成
 [numthreads(8, 8, 1)]
 void BuildPatches(uint3 id: SV_DispatchThreadID, uint3 groupId: SV_GroupID, uint3 groupThreadId: SV_GroupThreadID)
 {

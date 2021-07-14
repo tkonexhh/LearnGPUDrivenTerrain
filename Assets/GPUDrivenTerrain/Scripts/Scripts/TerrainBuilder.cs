@@ -334,14 +334,8 @@ namespace GPUDrivenTerrainLearn
             for (var lod = TerrainAsset.MAX_LOD; lod >= 0; lod--)
             {
                 _commandBuffer.SetComputeIntParam(_computeShader, ShaderConstants.PassLOD, lod);
-                if (lod == TerrainAsset.MAX_LOD)
-                {
-                    _commandBuffer.SetComputeBufferParam(_computeShader, _kernelOfTraverseQuadTree, ShaderConstants.ConsumeNodeList, _maxLODNodeList);
-                }
-                else
-                {
-                    _commandBuffer.SetComputeBufferParam(_computeShader, _kernelOfTraverseQuadTree, ShaderConstants.ConsumeNodeList, consumeNodeList);
-                }
+
+                _commandBuffer.SetComputeBufferParam(_computeShader, _kernelOfTraverseQuadTree, ShaderConstants.ConsumeNodeList, lod == TerrainAsset.MAX_LOD ? _maxLODNodeList : consumeNodeList);
                 _commandBuffer.SetComputeBufferParam(_computeShader, _kernelOfTraverseQuadTree, ShaderConstants.AppendNodeList, appendNodeList);
                 _commandBuffer.DispatchCompute(_computeShader, _kernelOfTraverseQuadTree, _indirectArgsBuffer, 0);
                 _commandBuffer.CopyCounterValue(appendNodeList, _indirectArgsBuffer, 0);
@@ -366,44 +360,11 @@ namespace GPUDrivenTerrainLearn
             // this.LogPatchArgs();
         }
 
-        public ComputeBuffer patchIndirectArgs
-        {
-            get
-            {
-                return _patchIndirectArgs;
-            }
-        }
-
-        public ComputeBuffer culledPatchBuffer
-        {
-            get
-            {
-                return _culledPatchBuffer;
-            }
-        }
-
-        public ComputeBuffer nodeIDList
-        {
-            get
-            {
-                return _finalNodeListBuffer;
-            }
-        }
-        public ComputeBuffer patchBoundsBuffer
-        {
-            get
-            {
-                return _patchBoundsBuffer;
-            }
-        }
-
-        public ComputeBuffer boundsIndirectArgs
-        {
-            get
-            {
-                return _patchBoundsIndirectArgs;
-            }
-        }
+        public ComputeBuffer patchIndirectArgs => _patchIndirectArgs;
+        public ComputeBuffer culledPatchBuffer => _culledPatchBuffer;
+        public ComputeBuffer nodeIDList => _finalNodeListBuffer;
+        public ComputeBuffer patchBoundsBuffer => _patchBoundsBuffer;
+        public ComputeBuffer boundsIndirectArgs => _patchBoundsIndirectArgs;
 
 
         private class ShaderConstants

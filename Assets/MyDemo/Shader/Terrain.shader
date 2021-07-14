@@ -56,9 +56,8 @@ Shader "XHH/Terrain"
                 RenderPatch patch = PatchList[v.instanceID];
                 uint lod = patch.lod;
                 float scale = pow(2, lod);
-                // inVertex.xz *= scale;
-                // inVertex.xz += patch.position;
-                o.vertex = TransformObjectToHClip(inVertex.xyz);
+                inVertex.xz *= scale;
+                inVertex.xz += patch.position;
 
                 //inVertex.xz += patch.position;
 
@@ -68,7 +67,7 @@ Shader "XHH/Terrain"
                 inVertex.y = height * 1;//_WorldSize.y;
                 
                 
-                // o.vertex = TransformObjectToHClip(inVertex.xyz);
+                o.vertex = TransformObjectToHClip(inVertex.xyz);
                 o.color = heightUV;
                 o.color = inVertex.y;
                 o.uv = v.uv * scale * 8;
