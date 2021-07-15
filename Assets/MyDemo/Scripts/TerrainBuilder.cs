@@ -7,10 +7,11 @@ using Unity.Mathematics;
 public class TerrainBuilder : System.IDisposable
 {
     private TerrainAsset m_TerrainAsset;
+    private CommandBuffer m_CommandBuffer = new CommandBuffer();
 
     private ComputeShader m_ComputeShader;
     private ComputeBuffer m_MaxLODNodeList;//MAXLOD下的Node list
-    private CommandBuffer m_CommandBuffer = new CommandBuffer();
+
 
     private ComputeBuffer _nodeListA;
     private ComputeBuffer _nodeListB;
@@ -21,11 +22,14 @@ public class TerrainBuilder : System.IDisposable
 
     private ComputeBuffer m_FinalNodeListBuffer;//CS 中的AppendFinalNodeList FinalNodeList
 
-    private float _nodeEvaluationC = 1;//节点分化评价C
-    private bool _isNodeEvaluationCDirty = true;
+
 
     public ComputeBuffer patchIndirectArgs => m_PatchIndirectArgs;
     public ComputeBuffer culledPatchBuffer => m_CulledPatchBuffer;
+
+
+    private Plane[] m_CameraFrustumPlanes = new Plane[6];//摄像机平面
+    private Vector4[] m_CameraFrustumPlanesV4 = new Vector4[6];//摄像机平面传入Shader的值 xyz法线方向 w
 
     private int m_KernelOfTraverseQuadTree;
     private int m_KernelOfBuildPatches;
@@ -38,13 +42,36 @@ public class TerrainBuilder : System.IDisposable
 
 
 
+    // private float _nodeEvaluationC = 1;//节点分化评价C
+    // private bool _isNodeEvaluationCDirty = true;
+    // public float nodeEvalDistance
+    // {
+    //     set
+    //     {
+    //         _nodeEvaluationC = value;
+    //         _isNodeEvaluationCDirty = true;
+    //     }
+    // }
 
-    public float nodeEvalDistance
+    private bool _isBoundsBufferOn;
+
+    public bool isBoundsBufferOn
     {
         set
         {
-            _nodeEvaluationC = value;
-            _isNodeEvaluationCDirty = true;
+            if (value)
+            {
+                m_ComputeShader.EnableKeyword("BOUNDS_DEBUG");
+            }
+            else
+            {
+                m_ComputeShader.DisableKeyword("BOUNDS_DEBUG");
+            }
+            _isBoundsBufferOn = value;
+        }
+        get
+        {
+            return _isBoundsBufferOn;
         }
     }
 
@@ -125,19 +152,19 @@ public class TerrainBuilder : System.IDisposable
         int nodeCount = TerrainAsset.MAX_LOD_NODE_COUNT;
         Vector4[] worldLODParams = new Vector4[TerrainAsset.MAX_LOD + 1];
         /*
-        记录了每个Lod级别的(nodeSize,patchExtent,nodeCount,sectorCountPerNode) 目前0-5 6层
+        记录了每个Lod级别的(nodeSize,halfPatchSize,nodeCount,sectorCountPerNode) 目前0-5 6层
         其中:
         - nodeSize为Node的边长(米)
-        - patchExtent等于nodeSize/16  
+        - halfPatchSize等于nodeSize/8/2 patch宽的一半   
         - nodeCount等于WorldSize/nodeSize
         - sectorCountPerNode等于2^lod
         */
         for (var lod = TerrainAsset.MAX_LOD; lod >= 0; lod--)
         {
             var nodeSize = wSize / nodeCount;//2048 1024 512 256 128 64
-            var patchExtent = nodeSize / TerrainDefine.PatchSize;//128 64 32 16 8 4  
+            var halfPatchSize = nodeSize / TerrainDefine.Node_PACTH_COM / 2;//128 64 32 16 8 4  
             var sectorCountPerNode = (int)Mathf.Pow(2, lod);//32 16 8 4 2 1
-            worldLODParams[lod] = new Vector4(nodeSize, patchExtent, nodeCount, sectorCountPerNode);
+            worldLODParams[lod] = new Vector4(nodeSize, halfPatchSize, nodeCount, sectorCountPerNode);
             nodeCount *= 2;//5 10 20 40 80 160
         }
         m_ComputeShader.SetVectorArray(ShaderConstants.WorldLodParams, worldLODParams);
@@ -170,18 +197,35 @@ public class TerrainBuilder : System.IDisposable
         // m_CommandBuffer.SetBufferCounterValue(m_PatchBoundsBuffer, 0);
     }
 
+    /// <summary>
+    /// 更新摄像机椎体
+    /// </summary>
+    /// <param name="camera"></param>
+    private void UpdateCameraFrustunPlanes(Camera camera)
+    {
+        GeometryUtility.CalculateFrustumPlanes(camera, m_CameraFrustumPlanes);
+        for (var i = 0; i < m_CameraFrustumPlanes.Length; i++)
+        {
+            Vector4 v4 = (Vector4)m_CameraFrustumPlanes[i].normal;
+            v4.w = m_CameraFrustumPlanes[i].distance;
+            m_CameraFrustumPlanesV4[i] = v4;
+        }
+        m_ComputeShader.SetVectorArray(ShaderConstants.CameraFrustumPlanes, m_CameraFrustumPlanesV4);
+    }
+
     public void Dispatch()
     {
         var camera = Camera.main;
         //clear
         m_CommandBuffer.Clear();
         this.ClearBufferCounter();
+        this.UpdateCameraFrustunPlanes(camera);
 
-        if (_isNodeEvaluationCDirty)//评价C 可以提前确定好 
-        {
-            _isNodeEvaluationCDirty = false;
-            m_CommandBuffer.SetComputeFloatParam(m_ComputeShader, ShaderConstants.NodeEvaluationC, _nodeEvaluationC);
-        }
+        // if (_isNodeEvaluationCDirty)//评价C 可以提前确定好 
+        // {
+        //     _isNodeEvaluationCDirty = false;
+        //     m_CommandBuffer.SetComputeFloatParam(m_ComputeShader, ShaderConstants.NodeEvaluationC, _nodeEvaluationC);
+        // }
 
         m_CommandBuffer.SetComputeVectorParam(m_ComputeShader, ShaderConstants.CameraPositionWS, camera.transform.position);
 
@@ -254,12 +298,13 @@ public class TerrainBuilder : System.IDisposable
     private class ShaderConstants
     {
         public static readonly int CameraPositionWS = Shader.PropertyToID("_CameraPositionWS");
+        public static readonly int CameraFrustumPlanes = Shader.PropertyToID("_CameraFrustumPlanes");
         public static readonly int PassLOD = Shader.PropertyToID("PassLOD");
         public static readonly int AppendFinalNodeList = Shader.PropertyToID("AppendFinalNodeList");
         public static readonly int FinalNodeList = Shader.PropertyToID("FinalNodeList");
         public static readonly int AppendNodeList = Shader.PropertyToID("AppendNodeList");
         public static readonly int ConsumeNodeList = Shader.PropertyToID("ConsumeNodeList");
-        public static readonly int NodeEvaluationC = Shader.PropertyToID("_NodeEvaluationC");
+        // public static readonly int NodeEvaluationC = Shader.PropertyToID("_NodeEvaluationC");
         public static readonly int WorldLodParams = Shader.PropertyToID("WorldLodParams");
         public static readonly int NodeIDOffsetOfLOD = Shader.PropertyToID("NodeIDOffsetOfLOD");
     }

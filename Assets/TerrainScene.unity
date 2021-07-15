@@ -357,7 +357,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   terrainAsset: {fileID: 11400000, guid: 72f6584782b5749ff9ab045d609bcbb9, type: 2}
-  isFrustumCullEnabled: 0
+  isFrustumCullEnabled: 1
   isHizOcclusionCullingEnabled: 0
   hizDepthBias: 0.2
   boundsHeightRedundance: 4
@@ -365,7 +365,7 @@ MonoBehaviour:
   seamLess: 1
   patchDebug: 0
   nodeDebug: 0
-  mipDebug: 1
+  mipDebug: 0
   patchBoundsDebug: 0
 --- !u!4 &1372903166
 Transform:

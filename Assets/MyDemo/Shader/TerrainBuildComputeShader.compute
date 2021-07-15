@@ -2,6 +2,8 @@
 #pragma kernel TraverseQuadTree
 #pragma kernel BuildPatches
 
+#pragma multi_compile_local __ BOUNDS_DEBUG //开启Patch BOUNDS 调式
+
 #include "./TerrainInput.hlsl"
 
 Texture2D<float4> _HeightMap;
@@ -19,13 +21,14 @@ StructuredBuffer<uint3> FinalNodeList;
 uniform uint PassLOD;
 uniform float3 _CameraPositionWS;//相机的位置
 
-//节点分化评价C
-uniform float _NodeEvaluationC;
 
 //*****裁剪相关变量*******/
+uniform float4 _CameraFrustumPlanes[6];//摄像机6个平面 xyz法线方向  w距离
 AppendStructuredBuffer<RenderPatch> CulledPatchList;
 
-
+#if BOUNDS_DEBUG
+AppendStructuredBuffer<BoundsDebug> PatchBoundsList;
+#endif
 
 
 //
@@ -52,6 +55,12 @@ float GetNodeCount(uint lod)
     return WorldLodParams[lod].z;
 }
 
+// 获取当前LOD下 单个Patch宽度的一半
+float GetHalfPatchSize(uint lod)
+{
+    return WorldLodParams[lod].y;
+}
+
 float2 GetNodePositionWS2(uint2 nodeLoc, uint mip)
 {
     float nodeMeterSize = GetNodeSize(mip);
@@ -76,9 +85,10 @@ c=用户控制系数*/
 bool EvaluateNode(uint2 nodeLoc, uint lod)
 {
     float3 positionWS = GetNodePositionWS(nodeLoc, lod);
+    _CameraPositionWS.y = 0;
     float d = distance(_CameraPositionWS, positionWS);
     float n = GetNodeSize(lod);
-    float f = d / (n * _NodeEvaluationC);
+    float f = d / (n * NodeEvaluationC);
     //可以四分
     if (f < 1)
     {
@@ -93,6 +103,63 @@ bool EvaluateNode(uint2 nodeLoc, uint lod)
 // {
 //     return NodeIDOffsetOfLOD[nodeLoc.z] + nodeLoc.y * GetNodeCount(nodeLoc.z) + nodeLoc.x;
 // }
+//============裁剪相关
+//获取Patch的包围盒
+Bounds GetPatchBounds(RenderPatch patch)
+{
+    float halfPachSize = GetHalfPatchSize(patch.lod);
+    Bounds bounds;
+    float3 boundsMin, boundsMax;
+    boundsMin.xz = patch.position - halfPachSize;
+    boundsMax.xz = patch.position + halfPachSize;
+    boundsMin.y = 0;
+    boundsMax.y = 0;
+
+    bounds.minPosition = boundsMin;
+    bounds.maxPosition = boundsMax;
+    return bounds;
+}
+
+//测试是否在平面的外侧
+bool IsOutSidePlane(float4 plane, float3 position)
+{
+    return dot(plane.xyz, position) + plane.w < 0;
+}
+
+bool IsAABBOutSidePlane(float4 plane, float3 boundsMin, float3 boundsMax)
+{
+    return IsOutSidePlane(plane, boundsMin) &&
+    IsOutSidePlane(plane, boundsMax) &&
+    IsOutSidePlane(plane, float3(boundsMin.x, boundsMin.y, boundsMax.z)) &&
+    IsOutSidePlane(plane, float3(boundsMin.x, boundsMax.y, boundsMin.z)) &&
+    IsOutSidePlane(plane, float3(boundsMin.x, boundsMax.y, boundsMax.z)) &&
+    IsOutSidePlane(plane, float3(boundsMax.x, boundsMin.y, boundsMax.z)) &&
+    IsOutSidePlane(plane, float3(boundsMax.x, boundsMax.y, boundsMin.z)) &&
+    IsOutSidePlane(plane, float3(boundsMax.x, boundsMin.y, boundsMin.z));
+}
+
+bool IsBoundsOutSidePlane(float4 plane, Bounds bounds)
+{
+    return IsAABBOutSidePlane(plane, bounds.minPosition, bounds.maxPosition);
+}
+
+//视锥裁剪
+bool FrustumCull(float4 planes[6], Bounds bounds)
+{
+    return IsBoundsOutSidePlane(planes[0], bounds) ||
+    IsBoundsOutSidePlane(planes[1], bounds) ||
+    IsBoundsOutSidePlane(planes[2], bounds) ||
+    IsBoundsOutSidePlane(planes[3], bounds) ||
+    IsBoundsOutSidePlane(planes[4], bounds) ||
+    IsBoundsOutSidePlane(planes[5], bounds);
+}
+
+bool Cull(Bounds bounds)
+{
+    //使用视锥裁剪
+    return FrustumCull(_CameraFrustumPlanes, bounds);
+}
+//------------
 
 
 //遍历四叉树，进行节点评价，生成AppendFinalNodeList和NodeDescriptors
@@ -147,4 +214,15 @@ void BuildPatches(uint3 id: SV_DispatchThreadID, uint3 groupId: SV_GroupID, uint
     //生成Patch
     RenderPatch patch = CreatePatch(nodeLoc, patchOffset);
     CulledPatchList.Append(patch);
+
+    //裁剪
+    Bounds bounds = GetPatchBounds(patch);
+    if (Cull(bounds))
+    {
+        return;
+    }
+
+    //构建每个Patch的包围盒 由两个V3坐标组成
+    #if BOUNDS_DEBUG
+    #endif
 }

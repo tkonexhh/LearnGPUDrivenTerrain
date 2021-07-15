@@ -30,7 +30,7 @@ public class TerrainAsset : ScriptableObject
         {
             if (!_patchMesh)
             {
-                _patchMesh = MeshUtility.CreatePlaneMesh(TerrainDefine.PatchSize);
+                _patchMesh = MeshUtility.CreatePlaneMesh(TerrainDefine.PATCH_MESH_GRID_COUNT);
             }
             return _patchMesh;
         }

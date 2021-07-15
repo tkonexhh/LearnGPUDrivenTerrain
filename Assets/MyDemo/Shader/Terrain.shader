@@ -15,6 +15,8 @@ Shader "XHH/Terrain"
         {
             HLSLPROGRAM
 
+            #pragma target 5.0
+
             //Keywords
             #pragma shader_feature ENABLE_MIP_DEBUG
             #pragma shader_feature ENABLE_PATCH_DEBUG
@@ -28,7 +30,7 @@ Shader "XHH/Terrain"
             #include "./TerrainInput.hlsl"
             // ./ 的写法
 
-            StructuredBuffer<RenderPatch> PatchList;
+            StructuredBuffer<RenderPatch> PatchList;//这个StructuredBuffer在大部分手机上都不支持
 
             struct appdata
             {
@@ -102,9 +104,10 @@ Shader "XHH/Terrain"
                 
                 
                 o.vertex = TransformObjectToHClip(inVertex.xyz);
-                // o.color = heightUV;
+                
                 
                 o.uv = v.uv * scale * 8;
+                o.color.xy = heightUV;
 
 
                 #if ENABLE_MIP_DEBUG
@@ -123,8 +126,8 @@ Shader "XHH/Terrain"
             {
                 // sample the texture
                 half4 col = tex2D(_MainTex, i.uv);
-                // return float4(i.color, 0, 0);
-                // return col;
+                // return float4(i.color.xy, 0, 0);
+                // return half4(col.rgb, 1);
                 #if ENABLE_MIP_DEBUG
                     return col * float4(i.color.xyz, 1);
                 #endif

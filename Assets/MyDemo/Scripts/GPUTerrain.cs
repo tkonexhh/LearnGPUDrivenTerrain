@@ -9,9 +9,9 @@ public class GPUTerrain : MonoBehaviour
     public bool patchDebug = false;
     public bool nodeDebug = false;
     public bool mipDebug = false;
+    public bool patchBoundsDebug = false;
 
-    [Range(0.1f, 1.9f)]
-    public float distanceEvaluation = 1.2f;
+    // [Range(0.1f, 1.9f)] public float distanceEvaluation = 1.2f;
 
     private TerrainBuilder m_TerrainBuilder;
     private Material m_TerrainMaterial;
@@ -74,8 +74,8 @@ public class GPUTerrain : MonoBehaviour
     {
         if (m_TerrainBuilder != null)
         {
-            m_TerrainBuilder.nodeEvalDistance = this.distanceEvaluation;
-
+            // m_TerrainBuilder.nodeEvalDistance = this.distanceEvaluation;
+            m_TerrainBuilder.isBoundsBufferOn = this.patchBoundsDebug;
             m_IsTerrainMaterialDirty = true;
         }
     }
@@ -91,6 +91,6 @@ public class GPUTerrain : MonoBehaviour
         }
 
 
-        Graphics.DrawMeshInstancedIndirect(TerrainAsset.patchMesh, 0, m_TerrainMaterial, new Bounds(Vector3.zero, Vector3.one * 10240), m_TerrainBuilder.patchIndirectArgs);
+        Graphics.DrawMeshInstancedIndirect(TerrainAsset.patchMesh, 0, m_TerrainMaterial, new Bounds(Vector3.zero, terrainAsset.worldSize), m_TerrainBuilder.patchIndirectArgs);
     }
 }
