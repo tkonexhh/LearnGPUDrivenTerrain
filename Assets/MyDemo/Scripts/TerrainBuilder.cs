@@ -8,35 +8,52 @@ public class TerrainBuilder : System.IDisposable
 {
     private TerrainAsset m_TerrainAsset;
     private CommandBuffer m_CommandBuffer = new CommandBuffer();
-
     private ComputeShader m_ComputeShader;
+
     private ComputeBuffer m_MaxLODNodeList;//MAXLOD下的Node list
 
 
     private ComputeBuffer _nodeListA;
     private ComputeBuffer _nodeListB;
-
     private ComputeBuffer m_IndirectArgsBuffer;
-    private ComputeBuffer m_PatchIndirectArgs;
-    private ComputeBuffer m_PatchBoundsBuffer;
-    private ComputeBuffer m_PatchBoundsIndirectArgs;//Patch Bounds 
-    private ComputeBuffer m_CulledPatchBuffer;
+
+
+    private ComputeBuffer m_CulledPatchBuffer;//裁剪之后剩余的Patch
+    private ComputeBuffer m_PatchIndirectArgs;//最终用于DrawIndirect
 
     private ComputeBuffer m_FinalNodeListBuffer;//CS 中的AppendFinalNodeList FinalNodeList
+    private ComputeBuffer m_NodeDescriptors;
 
+
+    //==========PatchBounds 可视化
+    private ComputeBuffer m_PatchBoundsIndirectArgs;//Patch Bounds 
+    private ComputeBuffer m_PatchBoundsBuffer;
+    public ComputeBuffer boundsIndirectArgs => m_PatchBoundsIndirectArgs;
+    public ComputeBuffer patchBoundsBuffer => m_PatchBoundsBuffer;
+    //----------
+
+
+    //=========摄像机裁剪
+    //摄像机平面
+    private Plane[] m_CameraFrustumPlanes = new Plane[6];
+    //摄像机平面传入Shader的值 xyz法线方向 w
+    private Vector4[] m_CameraFrustumPlanesV4 = new Vector4[6];
+    //--------
+
+    //====== LOD Map
+    private RenderTexture m_LodMapRT;
+    //------
 
 
     public ComputeBuffer patchIndirectArgs => m_PatchIndirectArgs;
     public ComputeBuffer culledPatchBuffer => m_CulledPatchBuffer;
 
-    public ComputeBuffer boundsIndirectArgs => m_PatchBoundsIndirectArgs;
-    public ComputeBuffer patchBoundsBuffer => m_PatchBoundsBuffer;
 
-    private Plane[] m_CameraFrustumPlanes = new Plane[6];//摄像机平面
-    private Vector4[] m_CameraFrustumPlanesV4 = new Vector4[6];//摄像机平面传入Shader的值 xyz法线方向 w
+
 
 
     private int m_KernelOfTraverseQuadTree;
+    private int m_KernelOfBuildLodMap;
     private int m_KernelOfBuildPatches;
 
     /// <summary>
@@ -105,24 +122,30 @@ public class TerrainBuilder : System.IDisposable
     {
         m_TerrainAsset = asset;
         m_ComputeShader = m_TerrainAsset.computeShader;
-        m_CommandBuffer.name = "GPUTerrain";
+        m_CommandBuffer.name = "GPUDTerrain";
 
-        //最大LOD情况下的NodeBuffer
+        //最大LOD情况下的NodeBuffer 用于首次四叉树细分
         m_MaxLODNodeList = new ComputeBuffer(TerrainAsset.MAX_LOD_NODE_COUNT * TerrainAsset.MAX_LOD_NODE_COUNT, 8, ComputeBufferType.Append | ComputeBufferType.Counter | ComputeBufferType.Structured);
         this.InitMaxLODNodeListDatas();
-
+        //用于细分的两个零食ComputerBuffer
         _nodeListA = new ComputeBuffer(_tempNodeBufferSize, 8, ComputeBufferType.Append | ComputeBufferType.Counter | ComputeBufferType.Structured);
         _nodeListB = new ComputeBuffer(_tempNodeBufferSize, 8, ComputeBufferType.Append | ComputeBufferType.Counter | ComputeBufferType.Structured);
 
         m_FinalNodeListBuffer = new ComputeBuffer(m_MaxNodeBufferSize, 12, ComputeBufferType.Append);
+        m_NodeDescriptors = new ComputeBuffer(TerrainDefine.MAX_NODE_ID + 1, 4);
 
         m_IndirectArgsBuffer = new ComputeBuffer(3, 4, ComputeBufferType.IndirectArguments);
         m_IndirectArgsBuffer.SetData(new uint[] { 1, 1, 1 });
 
-        //Patch Bounds Debug
-        m_PatchBoundsBuffer = new ComputeBuffer(m_MaxNodeBufferSize * 64, 4 * 10, ComputeBufferType.Append);
-        m_PatchBoundsIndirectArgs = new ComputeBuffer(5, 4, ComputeBufferType.IndirectArguments);
-        m_PatchBoundsIndirectArgs.SetData(new uint[] { TerrainAsset.unitCubeMesh.GetIndexCount(0), 0, 0, 0, 0 });
+
+        {//Patch Bounds Debug 之后相关的都可以去掉
+            m_PatchBoundsBuffer = new ComputeBuffer(m_MaxNodeBufferSize * 64, 4 * 10, ComputeBufferType.Append);
+            m_PatchBoundsIndirectArgs = new ComputeBuffer(5, 4, ComputeBufferType.IndirectArguments);
+            m_PatchBoundsIndirectArgs.SetData(new uint[] { TerrainAsset.unitCubeMesh.GetIndexCount(0), 0, 0, 0, 0 });
+        }
+
+        //lodMap
+        m_LodMapRT = TextureUtility.CreateLODMap(160);//5*Mathf.Pow(2,TerrainAsset.MAX_LOD)=160;
 
 
         m_CulledPatchBuffer = new ComputeBuffer(m_MaxNodeBufferSize * 64, 9 * 4, ComputeBufferType.Append | ComputeBufferType.Counter);
@@ -158,25 +181,32 @@ public class TerrainBuilder : System.IDisposable
         //绑定相关变量 buffer
         m_KernelOfTraverseQuadTree = m_ComputeShader.FindKernel("TraverseQuadTree");
         m_KernelOfBuildPatches = m_ComputeShader.FindKernel("BuildPatches");
+        m_KernelOfBuildLodMap = m_ComputeShader.FindKernel("BuildLodMap");
 
         this.BindComputeShader(m_KernelOfTraverseQuadTree);
         this.BindComputeShader(m_KernelOfBuildPatches);
+        this.BindComputeShader(m_KernelOfBuildLodMap);
     }
 
     private void BindComputeShader(int kernelIndex)
     {
         if (kernelIndex == m_KernelOfTraverseQuadTree)
         {
-            m_ComputeShader.SetBuffer(m_KernelOfTraverseQuadTree, ShaderConstants.AppendFinalNodeList, m_FinalNodeListBuffer);
+            m_ComputeShader.SetBuffer(kernelIndex, ShaderConstants.AppendFinalNodeList, m_FinalNodeListBuffer);
+        }
+        else if (kernelIndex == m_KernelOfBuildLodMap)
+        {
+            m_ComputeShader.SetTexture(kernelIndex, ShaderConstants.LodMap, m_LodMapRT);
         }
         else if (kernelIndex == m_KernelOfBuildPatches)
         {
             //TraverseQuadTree 中的AppendFinalNodeList 填入到 FinalNodeList
-            m_ComputeShader.SetBuffer(m_KernelOfBuildPatches, ShaderConstants.FinalNodeList, m_FinalNodeListBuffer);
-            m_ComputeShader.SetBuffer(m_KernelOfBuildPatches, "CulledPatchList", m_CulledPatchBuffer);
+            m_ComputeShader.SetBuffer(kernelIndex, ShaderConstants.FinalNodeList, m_FinalNodeListBuffer);
+            m_ComputeShader.SetBuffer(kernelIndex, "CulledPatchList", m_CulledPatchBuffer);
 
-            m_ComputeShader.SetBuffer(m_KernelOfBuildPatches, "PatchBoundsList", m_PatchBoundsBuffer);
+            m_ComputeShader.SetBuffer(kernelIndex, "PatchBoundsList", m_PatchBoundsBuffer);
         }
+
     }
 
 
@@ -254,7 +284,9 @@ public class TerrainBuilder : System.IDisposable
         //clear
         m_CommandBuffer.Clear();
         this.ClearBufferCounter();
-        this.UpdateCameraFrustunPlanes(camera);
+        {//使用摄像机裁剪
+            this.UpdateCameraFrustunPlanes(camera);
+        }
 
         // if (_isNodeEvaluationCDirty)//评价C 可以提前确定好 
         // {
@@ -294,10 +326,11 @@ public class TerrainBuilder : System.IDisposable
         m_CommandBuffer.DispatchCompute(m_ComputeShader, m_KernelOfBuildPatches, m_IndirectArgsBuffer, 0);
         m_CommandBuffer.CopyCounterValue(m_CulledPatchBuffer, m_PatchIndirectArgs, 4);
 
-        //Patch Bound Debug
-        if (isBoundsBufferOn)
-        {
-            m_CommandBuffer.CopyCounterValue(m_PatchBoundsBuffer, m_PatchBoundsIndirectArgs, 4);
+        {//Patch Bound Debug
+            if (isBoundsBufferOn)
+            {
+                m_CommandBuffer.CopyCounterValue(m_PatchBoundsBuffer, m_PatchBoundsIndirectArgs, 4);
+            }
         }
 
         Graphics.ExecuteCommandBuffer(m_CommandBuffer);
@@ -330,12 +363,15 @@ public class TerrainBuilder : System.IDisposable
 
     public void Dispose()
     {
+        m_CulledPatchBuffer.Dispose();
         m_FinalNodeListBuffer.Dispose();
         m_MaxLODNodeList.Dispose();
         _nodeListA.Dispose();
         _nodeListB.Dispose();
         m_PatchBoundsBuffer.Dispose();
         m_PatchBoundsIndirectArgs.Dispose();
+        m_PatchIndirectArgs.Dispose();
+        m_IndirectArgsBuffer.Dispose();
     }
 
     private class ShaderConstants
@@ -351,6 +387,9 @@ public class TerrainBuilder : System.IDisposable
         // public static readonly int NodeEvaluationC = Shader.PropertyToID("_NodeEvaluationC");
         public static readonly int WorldLodParams = Shader.PropertyToID("WorldLodParams");
         public static readonly int NodeIDOffsetOfLOD = Shader.PropertyToID("NodeIDOffsetOfLOD");
+        public static readonly int NodeDescriptors = Shader.PropertyToID("NodeDescriptors");
+
+        public static readonly int LodMap = Shader.PropertyToID("_LodMap");
     }
 }
 

@@ -1,6 +1,7 @@
 // Each #kernel tells which function to compile; you can have many kernels
 #pragma kernel TraverseQuadTree
 #pragma kernel BuildPatches
+#pragma kernel BuildLodMap //创建LOD Map 用于处理接缝
 
 #pragma multi_compile_local __ BOUNDS_DEBUG //开启Patch BOUNDS 调式
 #pragma multi_compile_local __ CULL_ON //开启Cull
@@ -37,14 +38,14 @@ AppendStructuredBuffer<BoundsDebug> PatchBoundsList;
 uniform float3 _WorldSize;
 
 //
-/**
+/*
 记录了每个Lod级别的(nodeSize,patchHalfSize,nodeCount,sectorCountPerNode) 目前0-5 6层
 其中:
 - nodeSize为Node的边长(米)
 - patchHalfSize等于nodeSize/8/2
 - nodeCount等于WorldSize/nodeSize
 - sectorCountPerNode等于2^lod
-**/
+*/
 uniform float4 WorldLodParams[6];
 
 uniform uint NodeIDOffsetOfLOD[6];
@@ -130,6 +131,7 @@ bool IsOutSidePlane(float4 plane, float3 position)
     return dot(plane.xyz, position) + plane.w < 0;
 }
 
+//判断一个包围盒是否全在平面外面 八个点都在外面
 bool IsAABBOutSidePlane(float4 plane, float3 boundsMin, float3 boundsMax)
 {
     return IsOutSidePlane(plane, boundsMin) &&
@@ -240,3 +242,20 @@ void BuildPatches(uint3 id: SV_DispatchThreadID, uint3 groupId: SV_GroupID, uint
         PatchBoundsList.Append(boundsDebug);
     #endif
 }
+
+
+
+//========LOD Map部分
+//构建LOD 0 下的LODMAP 相邻的LOD级别不同的话 就去处理接缝 需要先获得
+[numthreads(8, 8, 1)]
+void BuildLodMap(uint3 id: SV_DispatchThreadID)
+{
+    uint2 sectorLoc = id.xy;
+    // [unroll]
+    // for (uint lod = MAX_TERRAIN_LOD; lod >= 0; lod--)
+    // {
+
+    // }
+
+}
+//
