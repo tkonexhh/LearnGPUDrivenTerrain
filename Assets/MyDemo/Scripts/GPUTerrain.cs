@@ -6,6 +6,7 @@ public class GPUTerrain : MonoBehaviour
 {
     public TerrainAsset terrainAsset;
 
+    public bool Cull = true;
     public bool patchDebug = false;
     public bool nodeDebug = false;
     public bool mipDebug = false;
@@ -22,8 +23,10 @@ public class GPUTerrain : MonoBehaviour
     private void Awake()
     {
         m_TerrainBuilder = new TerrainBuilder(terrainAsset);
-        InitMaterial();
 
+
+        InitMaterial();
+        this.ApplySettings();
     }
 
     private void InitMaterial()
@@ -39,6 +42,11 @@ public class GPUTerrain : MonoBehaviour
             material.SetVector("_WorldSize", terrainAsset.worldSize);
             m_TerrainMaterial = material;
             this.UpdateTerrainMaterialProeprties();
+        }
+
+        if (patchBoundsDebug)
+        {
+            terrainAsset.boundsDebugMaterial.SetBuffer("BoundsList", m_TerrainBuilder.patchBoundsBuffer);
         }
     }
 
@@ -63,6 +71,21 @@ public class GPUTerrain : MonoBehaviour
                 m_TerrainMaterial.DisableKeyword("ENABLE_NODE_DEBUG");
 
         }
+
+        if (patchBoundsDebug)
+        {
+            if (this.mipDebug)
+                terrainAsset.boundsDebugMaterial.EnableKeyword("ENABLE_MIP_DEBUG");
+            else
+                terrainAsset.boundsDebugMaterial.DisableKeyword("ENABLE_MIP_DEBUG");
+
+            if (this.patchDebug)
+                terrainAsset.boundsDebugMaterial.EnableKeyword("ENABLE_PATCH_DEBUG");
+            else
+                terrainAsset.boundsDebugMaterial.DisableKeyword("ENABLE_PATCH_DEBUG");
+        }
+
+
     }
 
     private void OnValidate()
@@ -76,6 +99,7 @@ public class GPUTerrain : MonoBehaviour
         {
             // m_TerrainBuilder.nodeEvalDistance = this.distanceEvaluation;
             m_TerrainBuilder.isBoundsBufferOn = this.patchBoundsDebug;
+            m_TerrainBuilder.isCullOn = this.Cull;
             m_IsTerrainMaterialDirty = true;
         }
     }
@@ -92,5 +116,9 @@ public class GPUTerrain : MonoBehaviour
 
 
         Graphics.DrawMeshInstancedIndirect(TerrainAsset.patchMesh, 0, m_TerrainMaterial, new Bounds(Vector3.zero, terrainAsset.worldSize), m_TerrainBuilder.patchIndirectArgs);
+        if (patchBoundsDebug)
+        {
+            Graphics.DrawMeshInstancedIndirect(TerrainAsset.unitCubeMesh, 0, terrainAsset.boundsDebugMaterial, new Bounds(Vector3.zero, Vector3.one * 10240), m_TerrainBuilder.boundsIndirectArgs);
+        }
     }
 }

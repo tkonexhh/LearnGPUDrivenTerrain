@@ -22,6 +22,8 @@ public class TerrainAsset : ScriptableObject
 
     [SerializeField] private ComputeShader _terrainCompute;
 
+
+
     private static Mesh _patchMesh;
 
     public static Mesh patchMesh
@@ -35,6 +37,34 @@ public class TerrainAsset : ScriptableObject
             return _patchMesh;
         }
     }
+
+    private static Mesh _unitCubeMesh;
+
+    public static Mesh unitCubeMesh
+    {
+        get
+        {
+            if (!_unitCubeMesh)
+            {
+                _unitCubeMesh = MeshUtility.CreateCube(1);
+            }
+            return _unitCubeMesh;
+        }
+    }
+
+    private Material m_BoundsDebugMaterial;
+    public Material boundsDebugMaterial
+    {
+        get
+        {
+            if (!m_BoundsDebugMaterial)
+            {
+                m_BoundsDebugMaterial = new Material(Shader.Find("XHH/BoundsDebug"));
+            }
+            return m_BoundsDebugMaterial;
+        }
+    }
+
 
     public Vector3 worldSize => m_WorldSize;
     public Texture2D heightMap => m_HeightMap;

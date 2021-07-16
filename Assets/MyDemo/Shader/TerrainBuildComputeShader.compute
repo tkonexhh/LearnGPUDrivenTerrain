@@ -3,6 +3,7 @@
 #pragma kernel BuildPatches
 
 #pragma multi_compile_local __ BOUNDS_DEBUG //开启Patch BOUNDS 调式
+#pragma multi_compile_local __ CULL_ON //开启Cull
 
 #include "./TerrainInput.hlsl"
 
@@ -31,13 +32,16 @@ AppendStructuredBuffer<BoundsDebug> PatchBoundsList;
 #endif
 
 
+//*******世界尺寸参数********//
+//世界大小
+uniform float3 _WorldSize;
+
 //
 /**
-记录了每个Lod级别的(nodeSize,patchExtent,nodeCount,sectorCountPerNode) 目前0-5 6层
-
+记录了每个Lod级别的(nodeSize,patchHalfSize,nodeCount,sectorCountPerNode) 目前0-5 6层
 其中:
 - nodeSize为Node的边长(米)
-- patchExtent等于nodeSize/16
+- patchHalfSize等于nodeSize/8/2
 - nodeCount等于WorldSize/nodeSize
 - sectorCountPerNode等于2^lod
 **/
@@ -113,7 +117,7 @@ Bounds GetPatchBounds(RenderPatch patch)
     boundsMin.xz = patch.position - halfPachSize;
     boundsMax.xz = patch.position + halfPachSize;
     boundsMin.y = 0;
-    boundsMax.y = 0;
+    boundsMax.y = 200;
 
     bounds.minPosition = boundsMin;
     bounds.maxPosition = boundsMax;
@@ -156,8 +160,12 @@ bool FrustumCull(float4 planes[6], Bounds bounds)
 
 bool Cull(Bounds bounds)
 {
-    //使用视锥裁剪
-    return FrustumCull(_CameraFrustumPlanes, bounds);
+    #if CULL_ON
+        //使用视锥裁剪
+        return FrustumCull(_CameraFrustumPlanes, bounds);
+    #endif
+
+    return false;
 }
 //------------
 
@@ -213,7 +221,7 @@ void BuildPatches(uint3 id: SV_DispatchThreadID, uint3 groupId: SV_GroupID, uint
     uint2 patchOffset = groupThreadId.xy;
     //生成Patch
     RenderPatch patch = CreatePatch(nodeLoc, patchOffset);
-    CulledPatchList.Append(patch);
+    
 
     //裁剪
     Bounds bounds = GetPatchBounds(patch);
@@ -222,7 +230,13 @@ void BuildPatches(uint3 id: SV_DispatchThreadID, uint3 groupId: SV_GroupID, uint
         return;
     }
 
+    CulledPatchList.Append(patch);
+
     //构建每个Patch的包围盒 由两个V3坐标组成
     #if BOUNDS_DEBUG
+        BoundsDebug boundsDebug;
+        boundsDebug.bounds = bounds;
+        boundsDebug.color = float4((bounds.minPosition + _WorldSize * 0.5) / _WorldSize, 1);
+        PatchBoundsList.Append(boundsDebug);
     #endif
 }

@@ -18,6 +18,8 @@ public class TerrainBuilder : System.IDisposable
 
     private ComputeBuffer m_IndirectArgsBuffer;
     private ComputeBuffer m_PatchIndirectArgs;
+    private ComputeBuffer m_PatchBoundsBuffer;
+    private ComputeBuffer m_PatchBoundsIndirectArgs;//Patch Bounds 
     private ComputeBuffer m_CulledPatchBuffer;
 
     private ComputeBuffer m_FinalNodeListBuffer;//CS 中的AppendFinalNodeList FinalNodeList
@@ -27,9 +29,12 @@ public class TerrainBuilder : System.IDisposable
     public ComputeBuffer patchIndirectArgs => m_PatchIndirectArgs;
     public ComputeBuffer culledPatchBuffer => m_CulledPatchBuffer;
 
+    public ComputeBuffer boundsIndirectArgs => m_PatchBoundsIndirectArgs;
+    public ComputeBuffer patchBoundsBuffer => m_PatchBoundsBuffer;
 
     private Plane[] m_CameraFrustumPlanes = new Plane[6];//摄像机平面
     private Vector4[] m_CameraFrustumPlanesV4 = new Vector4[6];//摄像机平面传入Shader的值 xyz法线方向 w
+
 
     private int m_KernelOfTraverseQuadTree;
     private int m_KernelOfBuildPatches;
@@ -75,6 +80,27 @@ public class TerrainBuilder : System.IDisposable
         }
     }
 
+
+    private bool m_IsCullOn;
+    public bool isCullOn
+    {
+        set
+        {
+            if (value)
+            {
+                m_ComputeShader.EnableKeyword("CULL_ON");
+            }
+            else
+            {
+                m_ComputeShader.DisableKeyword("CULL_ON");
+            }
+            m_IsCullOn = value;
+        }
+
+        get => m_IsCullOn;
+
+    }
+
     public TerrainBuilder(TerrainAsset asset)
     {
         m_TerrainAsset = asset;
@@ -92,6 +118,12 @@ public class TerrainBuilder : System.IDisposable
 
         m_IndirectArgsBuffer = new ComputeBuffer(3, 4, ComputeBufferType.IndirectArguments);
         m_IndirectArgsBuffer.SetData(new uint[] { 1, 1, 1 });
+
+        //Patch Bounds Debug
+        m_PatchBoundsBuffer = new ComputeBuffer(m_MaxNodeBufferSize * 64, 4 * 10, ComputeBufferType.Append);
+        m_PatchBoundsIndirectArgs = new ComputeBuffer(5, 4, ComputeBufferType.IndirectArguments);
+        m_PatchBoundsIndirectArgs.SetData(new uint[] { TerrainAsset.unitCubeMesh.GetIndexCount(0), 0, 0, 0, 0 });
+
 
         m_CulledPatchBuffer = new ComputeBuffer(m_MaxNodeBufferSize * 64, 9 * 4, ComputeBufferType.Append | ComputeBufferType.Counter);
 
@@ -142,6 +174,8 @@ public class TerrainBuilder : System.IDisposable
             //TraverseQuadTree 中的AppendFinalNodeList 填入到 FinalNodeList
             m_ComputeShader.SetBuffer(m_KernelOfBuildPatches, ShaderConstants.FinalNodeList, m_FinalNodeListBuffer);
             m_ComputeShader.SetBuffer(m_KernelOfBuildPatches, "CulledPatchList", m_CulledPatchBuffer);
+
+            m_ComputeShader.SetBuffer(m_KernelOfBuildPatches, "PatchBoundsList", m_PatchBoundsBuffer);
         }
     }
 
@@ -194,7 +228,8 @@ public class TerrainBuilder : System.IDisposable
         m_CommandBuffer.SetBufferCounterValue(_nodeListB, 0);
         m_CommandBuffer.SetBufferCounterValue(m_FinalNodeListBuffer, 0);
         m_CommandBuffer.SetBufferCounterValue(m_CulledPatchBuffer, 0);
-        // m_CommandBuffer.SetBufferCounterValue(m_PatchBoundsBuffer, 0);
+
+        m_CommandBuffer.SetBufferCounterValue(m_PatchBoundsBuffer, 0);
     }
 
     /// <summary>
@@ -226,7 +261,7 @@ public class TerrainBuilder : System.IDisposable
         //     _isNodeEvaluationCDirty = false;
         //     m_CommandBuffer.SetComputeFloatParam(m_ComputeShader, ShaderConstants.NodeEvaluationC, _nodeEvaluationC);
         // }
-
+        m_CommandBuffer.SetComputeVectorParam(m_ComputeShader, ShaderConstants.WorldSize, m_TerrainAsset.worldSize);
         m_CommandBuffer.SetComputeVectorParam(m_ComputeShader, ShaderConstants.CameraPositionWS, camera.transform.position);
 
 
@@ -258,6 +293,12 @@ public class TerrainBuilder : System.IDisposable
         m_CommandBuffer.CopyCounterValue(m_FinalNodeListBuffer, m_IndirectArgsBuffer, 0);
         m_CommandBuffer.DispatchCompute(m_ComputeShader, m_KernelOfBuildPatches, m_IndirectArgsBuffer, 0);
         m_CommandBuffer.CopyCounterValue(m_CulledPatchBuffer, m_PatchIndirectArgs, 4);
+
+        //Patch Bound Debug
+        if (isBoundsBufferOn)
+        {
+            m_CommandBuffer.CopyCounterValue(m_PatchBoundsBuffer, m_PatchBoundsIndirectArgs, 4);
+        }
 
         Graphics.ExecuteCommandBuffer(m_CommandBuffer);
 
@@ -293,10 +334,13 @@ public class TerrainBuilder : System.IDisposable
         m_MaxLODNodeList.Dispose();
         _nodeListA.Dispose();
         _nodeListB.Dispose();
+        m_PatchBoundsBuffer.Dispose();
+        m_PatchBoundsIndirectArgs.Dispose();
     }
 
     private class ShaderConstants
     {
+        public static readonly int WorldSize = Shader.PropertyToID("_WorldSize");
         public static readonly int CameraPositionWS = Shader.PropertyToID("_CameraPositionWS");
         public static readonly int CameraFrustumPlanes = Shader.PropertyToID("_CameraFrustumPlanes");
         public static readonly int PassLOD = Shader.PropertyToID("PassLOD");

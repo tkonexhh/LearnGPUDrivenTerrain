@@ -48,4 +48,43 @@ public class MeshUtility
         mesh.UploadMeshData(false);
         return mesh;
     }
+
+    public static Mesh CreateCube(float size)
+    {
+        var mesh = new Mesh();
+        List<Vector3> vertices = new List<Vector3>();
+        float halfSize = size * 0.5f;
+
+        vertices.Add(new Vector3(-halfSize, -halfSize, -halfSize));
+        vertices.Add(new Vector3(halfSize, -halfSize, -halfSize));
+        vertices.Add(new Vector3(halfSize, halfSize, -halfSize));
+        vertices.Add(new Vector3(-halfSize, halfSize, -halfSize));
+
+        vertices.Add(new Vector3(-halfSize, halfSize, halfSize));
+        vertices.Add(new Vector3(halfSize, halfSize, halfSize));
+        vertices.Add(new Vector3(halfSize, -halfSize, halfSize));
+        vertices.Add(new Vector3(-halfSize, -halfSize, halfSize));
+
+        int[] indices = new int[6 * 6];
+
+        int[] triangles = {
+                0, 2, 1, //face front
+                0, 3, 2,
+                2, 3, 4, //face top
+                2, 4, 5,
+                1, 2, 5, //face right
+                1, 5, 6,
+                0, 7, 4, //face left
+                0, 4, 3,
+                5, 4, 7, //face back
+                5, 7, 6,
+                0, 6, 7, //face bottom
+                0, 1, 6
+            };
+
+        mesh.SetVertices(vertices);
+        mesh.triangles = triangles;
+        mesh.UploadMeshData(false);
+        return mesh;
+    }
 }
