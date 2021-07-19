@@ -3,13 +3,15 @@
 #pragma kernel BuildPatches
 #pragma kernel BuildLodMap //创建LOD Map 用于处理接缝
 
-#pragma multi_compile_local __ BOUNDS_DEBUG //开启Patch BOUNDS 调式
+#pragma multi_compile_local __ PATCH_BOUNDS_DEBUG //开启Patch BOUNDS 调式
+#pragma multi_compile_local __ NODE_BOUNDS_DEBUG //开启NODE BOUNDS 调式
 #pragma multi_compile_local __ CULL_ON //开启Cull
 
 #include "./TerrainInput.hlsl"
 
 Texture2D<float4> _HeightMap;
 
+Texture2D<float4> MinMaxHeightTexture;//
 
 //xy 代表Node的二维索引
 ConsumeStructuredBuffer<uint2> ConsumeNodeList;
@@ -28,10 +30,13 @@ uniform float3 _CameraPositionWS;//相机的位置
 uniform float4 _CameraFrustumPlanes[6];//摄像机6个平面 xyz法线方向  w距离
 AppendStructuredBuffer<RenderPatch> CulledPatchList;
 
-#if BOUNDS_DEBUG
+#if PATCH_BOUNDS_DEBUG
 AppendStructuredBuffer<BoundsDebug> PatchBoundsList;
 #endif
 
+#if NODE_BOUNDS_DEBUG
+    AppendStructuredBuffer<BoundsDebug> NodeBoundsList;
+#endif
 
 //*******世界尺寸参数********//
 //世界大小
@@ -48,7 +53,12 @@ uniform float3 _WorldSize;
 */
 uniform float4 WorldLodParams[6];
 
-uniform uint NodeIDOffsetOfLOD[6];
+// uniform uint NodeIDOffsetOfLOD[6];
+
+//Debug MinMax
+AppendStructuredBuffer<uint2> minMaxHeightList;
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 
 float GetNodeSize(uint lod)
 {
@@ -66,6 +76,11 @@ float GetHalfPatchSize(uint lod)
     return WorldLodParams[lod].y;
 }
 
+float2 GetMinMaxHeight(uint lod, uint2 nodeLoc)
+{
+    return MinMaxHeightTexture.mips[lod][nodeLoc].xy;
+}
+
 float2 GetNodePositionWS2(uint2 nodeLoc, uint mip)
 {
     float nodeMeterSize = GetNodeSize(mip);
@@ -77,9 +92,9 @@ float2 GetNodePositionWS2(uint2 nodeLoc, uint mip)
 float3 GetNodePositionWS(uint2 nodeLoc, uint lod)
 {
     float2 nodePositionWS = GetNodePositionWS2(nodeLoc, lod);
-    // float2 minMaxHeight = 1;//MinMaxHeightTexture.mips[lod + 3][nodeLoc].xy;
-    // float y = (minMaxHeight.x + minMaxHeight.y) * 0.5 * 1;//_WorldSize.y;
-    return float3(nodePositionWS.x, 0, nodePositionWS.y);
+    float2 minMaxHeight = GetMinMaxHeight(lod + 3, nodeLoc);
+    float y = (minMaxHeight.x + minMaxHeight.y) * 0.5 * _WorldSize.y;//中心点Y
+    return float3(nodePositionWS.x, y, nodePositionWS.y);
 }
 
 //决定是否细分Node
@@ -90,7 +105,7 @@ c=用户控制系数*/
 bool EvaluateNode(uint2 nodeLoc, uint lod)
 {
     float3 positionWS = GetNodePositionWS(nodeLoc, lod);
-    _CameraPositionWS.y = 0;
+    // _CameraPositionWS.y = 0;
     float d = distance(_CameraPositionWS, positionWS);
     float n = GetNodeSize(lod);
     float f = d / (n * NodeEvaluationC);
@@ -117,8 +132,8 @@ Bounds GetPatchBounds(RenderPatch patch)
     float3 boundsMin, boundsMax;
     boundsMin.xz = patch.position - halfPachSize;
     boundsMax.xz = patch.position + halfPachSize;
-    boundsMin.y = 0;
-    boundsMax.y = 200;
+    boundsMin.y = patch.minMaxHeight.x;
+    boundsMax.y = patch.minMaxHeight.y;
 
     bounds.minPosition = boundsMin;
     bounds.maxPosition = boundsMax;
@@ -189,6 +204,28 @@ void TraverseQuadTree(uint3 id: SV_DispatchThreadID)
     {
         //不需要分化 全部加入到FinalNode
         AppendFinalNodeList.Append(uint3(nodeLoc, PassLOD));
+
+
+        #if NODE_BOUNDS_DEBUG
+            float halfNodeSize = GetHalfPatchSize(PassLOD) * 8;//一个Node有8*8个Patch组成
+            float2 nodePositionWS = GetNodePositionWS2(nodeLoc, PassLOD);
+            float2 minMaxHeight = GetMinMaxHeight(PassLOD + 3, nodeLoc) * _WorldSize.y;
+            // float s = (minMaxHeight.y - minMaxHeight.x);
+            Bounds bounds;
+            float3 boundsMin, boundsMax;
+            boundsMin.xz = nodePositionWS - halfNodeSize;
+            boundsMax.xz = nodePositionWS + halfNodeSize;
+            boundsMin.y = minMaxHeight.x;
+            boundsMax.y = minMaxHeight.y;
+
+            bounds.minPosition = boundsMin;
+            bounds.maxPosition = boundsMax;
+
+            BoundsDebug boundsDebug;
+            boundsDebug.bounds = bounds;
+            boundsDebug.color = float4((bounds.minPosition + _WorldSize * 0.5) / _WorldSize, 1);
+            NodeBoundsList.Append(boundsDebug);
+        #endif
     }
 }
 
@@ -202,14 +239,14 @@ RenderPatch CreatePatch(uint3 nodeLoc, uint2 patchOffset)
     //得到当前Node的坐标
     float2 nodePositionWS = GetNodePositionWS2(nodeLoc.xy, lod);
 
-    // uint2 patchLoc = nodeLoc.xy * PATCH_COUNT_PER_NODE + patchOffset;
+    uint2 patchLoc = nodeLoc.xy * PATCH_COUNT_PER_NODE + patchOffset;
     //经测试，当min和max相差较小时，RG32似乎还是存在精度问题
-    // float2 minMaxHeight = 1;//MinMaxHeightTexture.mips[lod][patchLoc].rg * _WorldSize.y + float2(-_BoundsHeightRedundance, _BoundsHeightRedundance);
+    float2 minMaxHeight = GetMinMaxHeight(lod, patchLoc) * _WorldSize.y; ;//+ float2(-_BoundsHeightRedundance, _BoundsHeightRedundance);
     RenderPatch patch;
     patch.lod = lod;
     //局部坐标+node世界坐标
     patch.position = nodePositionWS + (patchOffset - (PATCH_COUNT_PER_NODE - 1) * 0.5) * patchMeterSize;
-    // patch.minMaxHeight = minMaxHeight;
+    patch.minMaxHeight = minMaxHeight;
     // patch.lodTrans = 0;
     return patch;
 }
@@ -233,9 +270,10 @@ void BuildPatches(uint3 id: SV_DispatchThreadID, uint3 groupId: SV_GroupID, uint
     }
 
     CulledPatchList.Append(patch);
+    minMaxHeightList.Append(patch.minMaxHeight);
 
     //构建每个Patch的包围盒 由两个V3坐标组成
-    #if BOUNDS_DEBUG
+    #if PATCH_BOUNDS_DEBUG
         BoundsDebug boundsDebug;
         boundsDebug.bounds = bounds;
         boundsDebug.color = float4((bounds.minPosition + _WorldSize * 0.5) / _WorldSize, 1);

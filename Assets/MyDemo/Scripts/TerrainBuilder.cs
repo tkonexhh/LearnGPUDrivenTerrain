@@ -28,10 +28,16 @@ public class TerrainBuilder : System.IDisposable
     //==========PatchBounds 可视化
     private ComputeBuffer m_PatchBoundsIndirectArgs;//Patch Bounds 
     private ComputeBuffer m_PatchBoundsBuffer;
-    public ComputeBuffer boundsIndirectArgs => m_PatchBoundsIndirectArgs;
+    public ComputeBuffer patchBoundsIndirectArgs => m_PatchBoundsIndirectArgs;
     public ComputeBuffer patchBoundsBuffer => m_PatchBoundsBuffer;
     //----------
 
+    //=========NodeBounds 可视化
+    private ComputeBuffer m_NodeBoundsIndirectArgs;//Patch Bounds 
+    private ComputeBuffer m_NodeBoundsBuffer;
+    public ComputeBuffer nodeBoundsIndirectArgs => m_NodeBoundsIndirectArgs;
+    public ComputeBuffer nodeBoundsBuffer => m_NodeBoundsBuffer;
+    //---------
 
     //=========摄像机裁剪
     //摄像机平面
@@ -49,7 +55,7 @@ public class TerrainBuilder : System.IDisposable
     public ComputeBuffer culledPatchBuffer => m_CulledPatchBuffer;
 
 
-
+    private ComputeBuffer m_MinMaxHeightBuffer;
 
 
     private int m_KernelOfTraverseQuadTree;
@@ -75,25 +81,45 @@ public class TerrainBuilder : System.IDisposable
     //     }
     // }
 
-    private bool _isBoundsBufferOn;
-
-    public bool isBoundsBufferOn
+    private bool _isPatchBoundsBufferOn;
+    public bool isPatchBoundsBufferOn
     {
         set
         {
             if (value)
             {
-                m_ComputeShader.EnableKeyword("BOUNDS_DEBUG");
+                m_ComputeShader.EnableKeyword("PATCH_BOUNDS_DEBUG");
             }
             else
             {
-                m_ComputeShader.DisableKeyword("BOUNDS_DEBUG");
+                m_ComputeShader.DisableKeyword("PATCH_BOUNDS_DEBUG");
             }
-            _isBoundsBufferOn = value;
+            _isPatchBoundsBufferOn = value;
         }
         get
         {
-            return _isBoundsBufferOn;
+            return _isPatchBoundsBufferOn;
+        }
+    }
+
+    private bool _isNodeBoundsBufferOn;
+    public bool isNodeBoundsBufferOn
+    {
+        set
+        {
+            if (value)
+            {
+                m_ComputeShader.EnableKeyword("NODE_BOUNDS_DEBUG");
+            }
+            else
+            {
+                m_ComputeShader.DisableKeyword("NODE_BOUNDS_DEBUG");
+            }
+            _isNodeBoundsBufferOn = value;
+        }
+        get
+        {
+            return _isNodeBoundsBufferOn;
         }
     }
 
@@ -125,11 +151,11 @@ public class TerrainBuilder : System.IDisposable
         m_CommandBuffer.name = "GPUDTerrain";
 
         //最大LOD情况下的NodeBuffer 用于首次四叉树细分
-        m_MaxLODNodeList = new ComputeBuffer(TerrainAsset.MAX_LOD_NODE_COUNT * TerrainAsset.MAX_LOD_NODE_COUNT, 8, ComputeBufferType.Append | ComputeBufferType.Counter | ComputeBufferType.Structured);
+        m_MaxLODNodeList = new ComputeBuffer(TerrainAsset.MAX_LOD_NODE_COUNT * TerrainAsset.MAX_LOD_NODE_COUNT, 8, ComputeBufferType.Append);
         this.InitMaxLODNodeListDatas();
         //用于细分的两个零食ComputerBuffer
-        _nodeListA = new ComputeBuffer(_tempNodeBufferSize, 8, ComputeBufferType.Append | ComputeBufferType.Counter | ComputeBufferType.Structured);
-        _nodeListB = new ComputeBuffer(_tempNodeBufferSize, 8, ComputeBufferType.Append | ComputeBufferType.Counter | ComputeBufferType.Structured);
+        _nodeListA = new ComputeBuffer(_tempNodeBufferSize, 8, ComputeBufferType.Append);
+        _nodeListB = new ComputeBuffer(_tempNodeBufferSize, 8, ComputeBufferType.Append);
 
         m_FinalNodeListBuffer = new ComputeBuffer(m_MaxNodeBufferSize, 12, ComputeBufferType.Append);
         m_NodeDescriptors = new ComputeBuffer(TerrainDefine.MAX_NODE_ID + 1, 4);
@@ -144,15 +170,24 @@ public class TerrainBuilder : System.IDisposable
             m_PatchBoundsIndirectArgs.SetData(new uint[] { TerrainAsset.unitCubeMesh.GetIndexCount(0), 0, 0, 0, 0 });
         }
 
+        {//Node Bounds Debug
+
+            m_NodeBoundsBuffer = new ComputeBuffer(m_MaxNodeBufferSize * 64, 4 * 10, ComputeBufferType.Append);
+            m_NodeBoundsIndirectArgs = new ComputeBuffer(5, 4, ComputeBufferType.IndirectArguments);
+            m_NodeBoundsIndirectArgs.SetData(new uint[] { TerrainAsset.unitCubeMesh.GetIndexCount(0), 0, 0, 0, 0 });
+        }
+
         //lodMap
         m_LodMapRT = TextureUtility.CreateLODMap(160);//5*Mathf.Pow(2,TerrainAsset.MAX_LOD)=160;
 
 
-        m_CulledPatchBuffer = new ComputeBuffer(m_MaxNodeBufferSize * 64, 9 * 4, ComputeBufferType.Append | ComputeBufferType.Counter);
+        m_CulledPatchBuffer = new ComputeBuffer(m_MaxNodeBufferSize * 64, 9 * 4, ComputeBufferType.Append);
 
         m_PatchIndirectArgs = new ComputeBuffer(5, 4, ComputeBufferType.IndirectArguments);
         m_PatchIndirectArgs.SetData(new uint[] { TerrainAsset.patchMesh.GetIndexCount(0), 0, 0, 0, 0 });
 
+
+        m_MinMaxHeightBuffer = new ComputeBuffer(m_MaxNodeBufferSize * 64, 8, ComputeBufferType.Append);
 
         this.InitKernels();
         this.InitWorldParams();
@@ -193,18 +228,22 @@ public class TerrainBuilder : System.IDisposable
         if (kernelIndex == m_KernelOfTraverseQuadTree)
         {
             m_ComputeShader.SetBuffer(kernelIndex, ShaderConstants.AppendFinalNodeList, m_FinalNodeListBuffer);
+            m_ComputeShader.SetTexture(kernelIndex, "MinMaxHeightTexture", m_TerrainAsset.minMaxHeightMap);
+            m_ComputeShader.SetBuffer(kernelIndex, "NodeBoundsList", m_NodeBoundsBuffer);
+
         }
         else if (kernelIndex == m_KernelOfBuildLodMap)
         {
-            m_ComputeShader.SetTexture(kernelIndex, ShaderConstants.LodMap, m_LodMapRT);
+            // m_ComputeShader.SetTexture(kernelIndex, ShaderConstants.LodMap, m_LodMapRT);
         }
         else if (kernelIndex == m_KernelOfBuildPatches)
         {
+            m_ComputeShader.SetTexture(kernelIndex, "MinMaxHeightTexture", m_TerrainAsset.minMaxHeightMap);
             //TraverseQuadTree 中的AppendFinalNodeList 填入到 FinalNodeList
             m_ComputeShader.SetBuffer(kernelIndex, ShaderConstants.FinalNodeList, m_FinalNodeListBuffer);
             m_ComputeShader.SetBuffer(kernelIndex, "CulledPatchList", m_CulledPatchBuffer);
-
             m_ComputeShader.SetBuffer(kernelIndex, "PatchBoundsList", m_PatchBoundsBuffer);
+            m_ComputeShader.SetBuffer(kernelIndex, "minMaxHeightList", m_MinMaxHeightBuffer);
         }
 
     }
@@ -260,6 +299,7 @@ public class TerrainBuilder : System.IDisposable
         m_CommandBuffer.SetBufferCounterValue(m_CulledPatchBuffer, 0);
 
         m_CommandBuffer.SetBufferCounterValue(m_PatchBoundsBuffer, 0);
+        m_CommandBuffer.SetBufferCounterValue(m_NodeBoundsBuffer, 0);
     }
 
     /// <summary>
@@ -326,39 +366,57 @@ public class TerrainBuilder : System.IDisposable
         m_CommandBuffer.DispatchCompute(m_ComputeShader, m_KernelOfBuildPatches, m_IndirectArgsBuffer, 0);
         m_CommandBuffer.CopyCounterValue(m_CulledPatchBuffer, m_PatchIndirectArgs, 4);
 
-        {//Patch Bound Debug
-            if (isBoundsBufferOn)
+        {//Patchs Bound Debug
+            if (isPatchBoundsBufferOn)
             {
                 m_CommandBuffer.CopyCounterValue(m_PatchBoundsBuffer, m_PatchBoundsIndirectArgs, 4);
             }
         }
 
+        {//Node Bounds Debug
+            if (isNodeBoundsBufferOn)
+            {
+                m_CommandBuffer.CopyCounterValue(m_NodeBoundsBuffer, m_NodeBoundsIndirectArgs, 4);
+            }
+        }
+
         Graphics.ExecuteCommandBuffer(m_CommandBuffer);
-
+        // LogMipmapY();
     }
 
-    private void LogMaxArg()
-    {
-        var maxLODNodeCount = TerrainAsset.MAX_LOD_NODE_COUNT;
-        uint2[] datas = new uint2[maxLODNodeCount * maxLODNodeCount];
-        m_MaxLODNodeList.GetData(datas);
-        for (int i = 0; i < datas.Length; i++)
-        {
-            Debug.LogError(datas[i].x + "===" + datas[i].y);
-        }
-    }
+    // private void LogMaxArg()
+    // {
+    //     var maxLODNodeCount = TerrainAsset.MAX_LOD_NODE_COUNT;
+    //     uint2[] datas = new uint2[maxLODNodeCount * maxLODNodeCount];
+    //     m_MaxLODNodeList.GetData(datas);
+    //     for (int i = 0; i < datas.Length; i++)
+    //     {
+    //         Debug.LogError(datas[i].x + "===" + datas[i].y);
+    //     }
+    // }
 
-    private void LogFinalNode()
-    {
-        Debug.LogError("------------");
-        // var maxLODNodeCount = TerrainAsset.MAX_LOD_NODE_COUNT;
-        uint3[] datas = new uint3[200];
-        m_FinalNodeListBuffer.GetData(datas);
-        for (int i = 0; i < datas.Length; i++)
-        {
-            Debug.LogError(datas[i].x + "===" + datas[i].y + "===" + datas[i].z);
-        }
-    }
+    // private void LogFinalNode()
+    // {
+    //     Debug.LogError("------------");
+    //     // var maxLODNodeCount = TerrainAsset.MAX_LOD_NODE_COUNT;
+    //     uint3[] datas = new uint3[200];
+    //     m_FinalNodeListBuffer.GetData(datas);
+    //     for (int i = 0; i < datas.Length; i++)
+    //     {
+    //         Debug.LogError(datas[i].x + "===" + datas[i].y + "===" + datas[i].z);
+    //     }
+    // }
+
+    // public void LogMipmapY()
+    // {
+    //     Debug.LogError("------------");
+    //     uint2[] datas = new uint2[20];
+    //     m_MinMaxHeightBuffer.GetData(datas);
+    //     for (int i = 0; i < datas.Length; i++)
+    //     {
+    //         Debug.LogError(datas[i].x + "===" + datas[i].y);
+    //     }
+    // }
 
 
     public void Dispose()
@@ -368,8 +426,14 @@ public class TerrainBuilder : System.IDisposable
         m_MaxLODNodeList.Dispose();
         _nodeListA.Dispose();
         _nodeListB.Dispose();
-        m_PatchBoundsBuffer.Dispose();
-        m_PatchBoundsIndirectArgs.Dispose();
+        {
+            m_PatchBoundsBuffer.Dispose();
+            m_PatchBoundsIndirectArgs.Dispose();
+        }
+        {
+            m_NodeBoundsBuffer.Dispose();
+            m_NodeBoundsIndirectArgs.Dispose();
+        }
         m_PatchIndirectArgs.Dispose();
         m_IndirectArgsBuffer.Dispose();
     }
@@ -386,10 +450,10 @@ public class TerrainBuilder : System.IDisposable
         public static readonly int ConsumeNodeList = Shader.PropertyToID("ConsumeNodeList");
         // public static readonly int NodeEvaluationC = Shader.PropertyToID("_NodeEvaluationC");
         public static readonly int WorldLodParams = Shader.PropertyToID("WorldLodParams");
-        public static readonly int NodeIDOffsetOfLOD = Shader.PropertyToID("NodeIDOffsetOfLOD");
-        public static readonly int NodeDescriptors = Shader.PropertyToID("NodeDescriptors");
+        // public static readonly int NodeIDOffsetOfLOD = Shader.PropertyToID("NodeIDOffsetOfLOD");
+        // public static readonly int NodeDescriptors = Shader.PropertyToID("NodeDescriptors");
 
-        public static readonly int LodMap = Shader.PropertyToID("_LodMap");
+        // public static readonly int LodMap = Shader.PropertyToID("_LodMap");
     }
 }
 

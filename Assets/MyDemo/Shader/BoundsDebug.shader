@@ -3,9 +3,8 @@ Shader "XHH/BoundsDebug"
     Properties { }
     SubShader
     {
-        Tags { "RenderType" = "Opaque" "LightMode" = "UniversalForward" }
+        Tags { "RenderType" = "Opaque" "LightMode" = "UniversalForward" "Queue" = "Transparent" }
         LOD 100
-
         Blend SrcAlpha OneMinusSrcAlpha
         Pass
         {
@@ -63,7 +62,7 @@ Shader "XHH/BoundsDebug"
             }
             half4 frag(v2f i): SV_Target
             {
-                half4 col = half4(i.color, 1);
+                half4 col = half4(i.color, 0.7);
                 return col;
             }
             ENDHLSL

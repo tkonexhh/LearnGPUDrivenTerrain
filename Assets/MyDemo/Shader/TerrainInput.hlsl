@@ -30,12 +30,11 @@ struct NodeDescriptor
 struct RenderPatch
 {
     float2 position;
-    // float2 minMaxHeight;
+    float2 minMaxHeight;//x:最小Y y:最大Y
     uint lod;
     // uint4 lodTrans;
 
 };
-
 
 struct Bounds
 {
@@ -48,5 +47,6 @@ struct BoundsDebug
     Bounds bounds;
     float4 color;
 };
+
 
 #endif

@@ -20,6 +20,8 @@ public class TerrainAsset : ScriptableObject
     [SerializeField] private Texture2D m_AlbedoMap;
     [SerializeField] private Texture2D m_NormalMap;
 
+    [SerializeField] private Texture2D[] minMaxHeightMaps;
+
     [SerializeField] private ComputeShader _terrainCompute;
 
 
@@ -38,6 +40,7 @@ public class TerrainAsset : ScriptableObject
         }
     }
 
+
     private static Mesh _unitCubeMesh;
 
     public static Mesh unitCubeMesh
@@ -52,16 +55,41 @@ public class TerrainAsset : ScriptableObject
         }
     }
 
-    private Material m_BoundsDebugMaterial;
-    public Material boundsDebugMaterial
+    private RenderTexture _minMaxHeightMap;
+    public RenderTexture minMaxHeightMap
     {
         get
         {
-            if (!m_BoundsDebugMaterial)
+            if (!_minMaxHeightMap)
             {
-                m_BoundsDebugMaterial = new Material(Shader.Find("XHH/BoundsDebug"));
+                _minMaxHeightMap = TextureUtility.CreateRenderTextureWithMipTextures(minMaxHeightMaps, RenderTextureFormat.RG32);
+                TextureUtility.SaveRenderTexture(_minMaxHeightMap, Application.streamingAssetsPath, "MinMaxHeightMap");
             }
-            return m_BoundsDebugMaterial;
+            return _minMaxHeightMap;
+        }
+    }
+
+    private Material m_PatchBoundsDebugMaterial;
+    public Material patchBoundsDebugMaterial
+    {
+        get
+        {
+            if (!m_PatchBoundsDebugMaterial)
+            {
+                m_PatchBoundsDebugMaterial = new Material(Shader.Find("XHH/BoundsDebug"));
+            }
+            return m_PatchBoundsDebugMaterial;
+        }
+    }
+
+    private Material m_NodeBoundsDebugMaterial;
+    public Material nodeBoundsDebugMaterial
+    {
+        get
+        {
+            if (!m_NodeBoundsDebugMaterial)
+                m_NodeBoundsDebugMaterial = new Material(Shader.Find("XHH/BoundsDebug"));
+            return m_NodeBoundsDebugMaterial;
         }
     }
 

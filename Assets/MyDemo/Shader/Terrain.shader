@@ -30,7 +30,7 @@ Shader "XHH/Terrain"
             #include "./TerrainInput.hlsl"
             // ./ 的写法
 
-            StructuredBuffer<RenderPatch> PatchList;//这个StructuredBuffer在大部分手机上都不支持
+            StructuredBuffer<RenderPatch> PatchList;//这个StructuredBuffer在大部分手机上都不支持 但是要切刀Vulkan
 
             struct appdata
             {
@@ -43,14 +43,15 @@ Shader "XHH/Terrain"
             {
                 float2 uv: TEXCOORD0;
                 float4 vertex: SV_POSITION;
-                float4 color: TEXCOORD1;//定点色
-
+                float4 color: TEXCOORD1;
+                float height: TEXCOORD2;
             };
 
             sampler2D _MainTex;
-            float4 _MainTex_ST;
             sampler2D _HeightMap;
+            sampler2D _NormalMap;
             uniform float3 _WorldSize;//世界大小
+            float4x4 _WorldToNormalMapMatrix;
 
             #if ENABLE_MIP_DEBUG
                 //用于Mipmap的调试颜色
@@ -77,6 +78,21 @@ Shader "XHH/Terrain"
                 }
             #endif
 
+            float3 TransformNormalToWorldSpace(float3 normal)
+            {
+                return SafeNormalize(mul(normal, (float3x3)_WorldToNormalMapMatrix));
+            }
+
+            float3 SampleNormal(float2 uv)
+            {
+                float3 normal;
+                normal.xz = tex2Dlod(_NormalMap, float4(uv, 0, 0)).xy * 2 - 1;
+                normal.y = sqrt(max(0, 1 - dot(normal.xz, normal.xz)));
+                normal = TransformNormalToWorldSpace(normal);
+                return normal;
+            }
+
+
             v2f vert(appdata v)
             {
                 v2f o;
@@ -87,9 +103,11 @@ Shader "XHH/Terrain"
                 uint lod = patch.lod;
                 float scale = pow(2, lod);
                 inVertex.xz *= scale;
+
                 #if ENABLE_PATCH_DEBUG
                     inVertex.xz *= 0.9;
                 #endif
+
                 inVertex.xz += patch.position;
 
                 #if ENABLE_NODE_DEBUG
@@ -99,20 +117,21 @@ Shader "XHH/Terrain"
                 //这里的UV是如何处理的？
                 float2 heightUV = (inVertex.xz + (_WorldSize.xz * 0.5) + 0.5) / (_WorldSize.xz + 1);
                 float height = tex2Dlod(_HeightMap, float4(heightUV, 0, 0)).r;
-                o.color = height;
+                o.height = height;
                 inVertex.y = height * _WorldSize.y;
                 
                 
                 o.vertex = TransformObjectToHClip(inVertex.xyz);
-                
-                
-                o.uv = v.uv * scale * 8;
-                o.color.xy = heightUV;
+                o.uv = v.uv * scale * 8;//*8是为什么
 
+                //Normal
+                float3 normal = SampleNormal(heightUV);
+                Light light = GetMainLight();
+                o.color = max(0.05, dot(light.direction, normal));
 
                 #if ENABLE_MIP_DEBUG
                     uint4 lodColorIndex = lod;
-                    o.color.xyz = (debugColorForMip[lodColorIndex.x] +
+                    o.color.xyz *= (debugColorForMip[lodColorIndex.x] +
                     debugColorForMip[lodColorIndex.y] +
                     debugColorForMip[lodColorIndex.z] +
                     debugColorForMip[lodColorIndex.w]) * 0.25;
@@ -124,14 +143,10 @@ Shader "XHH/Terrain"
 
             half4 frag(v2f i): SV_Target
             {
-                // sample the texture
                 half4 col = tex2D(_MainTex, i.uv);
-                // return float4(i.color.xy, 0, 0);
-                // return half4(col.rgb, 1);
-                #if ENABLE_MIP_DEBUG
-                    return col * float4(i.color.xyz, 1);
-                #endif
-                return col * float4(i.color.xyz * i.color.z, 1);
+                col.rgb *= i.color;
+                return col;
+                return i.height;
             }
             ENDHLSL
 
