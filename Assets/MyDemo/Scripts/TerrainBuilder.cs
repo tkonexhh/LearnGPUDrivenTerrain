@@ -55,8 +55,6 @@ public class TerrainBuilder : System.IDisposable
     public ComputeBuffer culledPatchBuffer => m_CulledPatchBuffer;
 
 
-    private ComputeBuffer m_MinMaxHeightBuffer;
-
 
     private int m_KernelOfTraverseQuadTree;
     private int m_KernelOfBuildLodMap;
@@ -68,18 +66,6 @@ public class TerrainBuilder : System.IDisposable
     private int m_MaxNodeBufferSize = 200;
     private int _tempNodeBufferSize = 50;
 
-
-
-    // private float _nodeEvaluationC = 1;//节点分化评价C
-    // private bool _isNodeEvaluationCDirty = true;
-    // public float nodeEvalDistance
-    // {
-    //     set
-    //     {
-    //         _nodeEvaluationC = value;
-    //         _isNodeEvaluationCDirty = true;
-    //     }
-    // }
 
     private bool _isPatchBoundsBufferOn;
     public bool isPatchBoundsBufferOn
@@ -141,7 +127,14 @@ public class TerrainBuilder : System.IDisposable
         }
 
         get => m_IsCullOn;
+    }
 
+    public int boundsHeightRedundance
+    {
+        set
+        {
+            m_ComputeShader.SetInt("_BoundsHeightRedundance", value);
+        }
     }
 
     public TerrainBuilder(TerrainAsset asset)
@@ -187,7 +180,14 @@ public class TerrainBuilder : System.IDisposable
         m_PatchIndirectArgs.SetData(new uint[] { TerrainAsset.patchMesh.GetIndexCount(0), 0, 0, 0, 0 });
 
 
-        m_MinMaxHeightBuffer = new ComputeBuffer(m_MaxNodeBufferSize * 64, 8, ComputeBufferType.Append);
+        if (SystemInfo.usesReversedZBuffer)
+        {
+            m_ComputeShader.EnableKeyword("_REVERSE_Z");
+        }
+        else
+        {
+            m_ComputeShader.DisableKeyword("_REVERSE_Z");
+        }
 
         this.InitKernels();
         this.InitWorldParams();
@@ -243,7 +243,6 @@ public class TerrainBuilder : System.IDisposable
             m_ComputeShader.SetBuffer(kernelIndex, ShaderConstants.FinalNodeList, m_FinalNodeListBuffer);
             m_ComputeShader.SetBuffer(kernelIndex, "CulledPatchList", m_CulledPatchBuffer);
             m_ComputeShader.SetBuffer(kernelIndex, "PatchBoundsList", m_PatchBoundsBuffer);
-            m_ComputeShader.SetBuffer(kernelIndex, "minMaxHeightList", m_MinMaxHeightBuffer);
         }
 
     }
@@ -384,28 +383,6 @@ public class TerrainBuilder : System.IDisposable
         // LogMipmapY();
     }
 
-    // private void LogMaxArg()
-    // {
-    //     var maxLODNodeCount = TerrainAsset.MAX_LOD_NODE_COUNT;
-    //     uint2[] datas = new uint2[maxLODNodeCount * maxLODNodeCount];
-    //     m_MaxLODNodeList.GetData(datas);
-    //     for (int i = 0; i < datas.Length; i++)
-    //     {
-    //         Debug.LogError(datas[i].x + "===" + datas[i].y);
-    //     }
-    // }
-
-    // private void LogFinalNode()
-    // {
-    //     Debug.LogError("------------");
-    //     // var maxLODNodeCount = TerrainAsset.MAX_LOD_NODE_COUNT;
-    //     uint3[] datas = new uint3[200];
-    //     m_FinalNodeListBuffer.GetData(datas);
-    //     for (int i = 0; i < datas.Length; i++)
-    //     {
-    //         Debug.LogError(datas[i].x + "===" + datas[i].y + "===" + datas[i].z);
-    //     }
-    // }
 
     // public void LogMipmapY()
     // {

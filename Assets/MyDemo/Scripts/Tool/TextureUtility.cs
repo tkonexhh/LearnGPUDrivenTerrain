@@ -23,7 +23,7 @@ public class TextureUtility
 
     public static RenderTexture CreateRenderTextureWithMipTextures(Texture2D[] mipmaps, RenderTextureFormat format)
     {
-        format = RenderTextureFormat.RGB565;
+        // format = RenderTextureFormat.RGB565;
         var mip0 = mipmaps[0];
         RenderTextureDescriptor descriptor = new RenderTextureDescriptor(mip0.width, mip0.height, format, 0, mipmaps.Length);
         descriptor.autoGenerateMips = false;
@@ -36,8 +36,6 @@ public class TextureUtility
         rt.Create();
         for (var i = 0; i < mipmaps.Length; i++)
         {
-            //现在mipmaps[i].format 不相同
-            Debug.LogError(mipmaps[i].format + "---" + rt.format);
             //Graphics.CopyTexture called for entire mipmaps with different memory size (source (RGB8 sRGB) is 75 bytes and destination (RG16 UNorm) is 100 bytes)
             Graphics.CopyTexture(mipmaps[i], 0, 0, rt, 0, i);
         }

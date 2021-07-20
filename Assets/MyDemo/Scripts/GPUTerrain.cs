@@ -15,6 +15,8 @@ public class GPUTerrain : MonoBehaviour
     public bool nodeBoundsDebug = false;//Node包围盒
     public bool patchBoundsDebug = false;//Patch包围盒
 
+    [Range(0, 100)] public int boundsHeightRedundance = 5;
+
     // [Range(0.1f, 1.9f)] public float distanceEvaluation = 1.2f;
 
     private TerrainBuilder m_TerrainBuilder;
@@ -47,7 +49,7 @@ public class GPUTerrain : MonoBehaviour
             m_TerrainMaterial = material;
             this.UpdateTerrainMaterialProeprties();
 
-            Debug.LogError("RenderTextureFormat.RG32:" + SystemInfo.SupportsRenderTextureFormat(RenderTextureFormat.RG32));
+            Debug.LogError("usesReversedZBuffer:" + SystemInfo.usesReversedZBuffer);
             Debug.LogError("copyTextureSupport:" + SystemInfo.copyTextureSupport);
             Debug.LogError("supportsComputeShaders:" + SystemInfo.supportsComputeShaders);
             Debug.LogError("graphicsShaderLevel:" + SystemInfo.graphicsShaderLevel);
@@ -130,6 +132,7 @@ public class GPUTerrain : MonoBehaviour
         if (m_TerrainBuilder != null)
         {
             // m_TerrainBuilder.nodeEvalDistance = this.distanceEvaluation;
+            m_TerrainBuilder.boundsHeightRedundance = this.boundsHeightRedundance;
             m_TerrainBuilder.isPatchBoundsBufferOn = this.patchBoundsDebug;
             m_TerrainBuilder.isNodeBoundsBufferOn = this.nodeBoundsDebug;
             m_TerrainBuilder.isCullOn = this.Cull;

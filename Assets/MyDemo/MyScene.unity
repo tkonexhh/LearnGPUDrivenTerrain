@@ -329,11 +329,12 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   terrainAsset: {fileID: 11400000, guid: f230cd276490a4920b687fab2afc73f5, type: 2}
-  Cull: 1
+  Cull: 0
   patchDebug: 1
   nodeDebug: 1
   mipDebug: 1
-  patchBoundsDebug: 1
+  nodeBoundsDebug: 0
+  patchBoundsDebug: 0
 --- !u!4 &787169529
 Transform:
   m_ObjectHideFlags: 0
@@ -393,8 +394,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_RenderShadows: 1
-  m_RequiresDepthTextureOption: 2
-  m_RequiresOpaqueTextureOption: 2
+  m_RequiresDepthTextureOption: 1
+  m_RequiresOpaqueTextureOption: 0
   m_CameraType: 0
   m_Cameras: []
   m_RendererIndex: 0
@@ -444,11 +445,11 @@ Camera:
     width: 1
     height: 1
   near clip plane: 0.3
-  far clip plane: 50000
+  far clip plane: 10000
   field of view: 60
   orthographic: 0
   orthographic size: 5
-  m_Depth: 0
+  m_Depth: -1
   m_CullingMask:
     serializedVersion: 2
     m_Bits: 4294967295
@@ -470,8 +471,8 @@ Transform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1815163135}
-  m_LocalRotation: {x: 0.62564677, y: -0, z: -0, w: 0.78010654}
-  m_LocalPosition: {x: 0, y: 2804, z: 1079}
+  m_LocalRotation: {x: -0.03998896, y: 0.8883048, z: -0.078821056, w: -0.4506691}
+  m_LocalPosition: {x: -49.274517, y: 1510.8475, z: 1109.5214}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_Children: []
   m_Father: {fileID: 0}

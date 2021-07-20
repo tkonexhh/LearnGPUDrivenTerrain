@@ -30,7 +30,7 @@ Shader "XHH/Terrain"
             #include "./TerrainInput.hlsl"
             // ./ 的写法
 
-            StructuredBuffer<RenderPatch> PatchList;//这个StructuredBuffer在大部分手机上都不支持 但是要切刀Vulkan
+            StructuredBuffer<RenderPatch> PatchList;//这个StructuredBuffer在大部分手机上都不支持 但是要切到Vulkan
 
             struct appdata
             {
