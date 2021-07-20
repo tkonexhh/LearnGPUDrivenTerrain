@@ -22,9 +22,11 @@
 //节点分化评价C值
 #define NodeEvaluationC 1.2
 
+//节点描述
 struct NodeDescriptor
 {
-    uint branch;
+    uint branch; //1 细分过,0 没有细分
+
 };
 
 struct RenderPatch

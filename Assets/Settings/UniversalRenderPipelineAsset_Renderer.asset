@@ -27,9 +27,8 @@ MonoBehaviour:
   m_Name: UniversalRenderPipelineAsset_Renderer
   m_EditorClassIdentifier: 
   m_RendererFeatures:
-  - {fileID: 1575096219482915187}
   - {fileID: 765002004498835416}
-  m_RendererFeatureMap: 73015799aadddb15d8679d1a45d59d0a
+  m_RendererFeatureMap: d8679d1a45d59d0a
   postProcessData: {fileID: 0}
   xrSystemData: {fileID: 11400000, guid: 60e1133243b97e347b653163a8c01b64, type: 2}
   shaders:
@@ -68,19 +67,5 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 22777da459a234671949a316cf759466, type: 3}
   m_Name: NewHizMapCSRenderFeature
   m_EditorClassIdentifier: 
-  m_Active: 1
-  m_ComputeShader: {fileID: 7200000, guid: 112e50013b1894ecf812aa1fb6c2c389, type: 3}
---- !u!114 &1575096219482915187
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: ddfa3dcf456c7495c83c11c97b1125cb, type: 3}
-  m_Name: NewHizMapRenderFeature
-  m_EditorClassIdentifier: 
   m_Active: 0
-  _computeShader: {fileID: 7200000, guid: 4a747cc57a32d48918bef71f6564df23, type: 3}
+  m_ComputeShader: {fileID: 7200000, guid: 112e50013b1894ecf812aa1fb6c2c389, type: 3}

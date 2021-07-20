@@ -1,7 +1,8 @@
 // Each #kernel tells which function to compile; you can have many kernels
 #pragma kernel TraverseQuadTree
-#pragma kernel BuildPatches
 #pragma kernel BuildLodMap //创建LOD Map 用于处理接缝
+#pragma kernel BuildPatches
+
 
 #pragma multi_compile_local __ _REVERSE_Z
 #pragma multi_compile_local __ PATCH_BOUNDS_DEBUG //开启Patch BOUNDS 调式
@@ -11,7 +12,7 @@
 #include "./TerrainInput.hlsl"
 
 Texture2D<float4> _HeightMap;
-
+RWTexture2D<float4> _LodMap;
 Texture2D<float4> MinMaxHeightTexture;//
 
 //xy 代表Node的二维索引
@@ -21,6 +22,11 @@ AppendStructuredBuffer<uint2> AppendNodeList;
 AppendStructuredBuffer<uint3> AppendFinalNodeList;
 //四叉树遍历完成后，合适的节点存放在这里
 StructuredBuffer<uint3> FinalNodeList;
+
+//保存了Node的一些信息，通过NodeId来访问
+RWStructuredBuffer<NodeDescriptor> NodeDescriptors;
+uniform uint NodeIDOffsetOfLOD[6];//不同LOD Node的数量
+
 
 //表示TraverseQuadTree kernel执行的LOD级别
 uniform uint PassLOD;
@@ -58,8 +64,6 @@ uniform float3 _WorldSize;
 */
 uniform float4 WorldLodParams[6];
 
-// uniform uint NodeIDOffsetOfLOD[6];
-
 uniform float _HizDepthBias;
 //****以下这些参数全由HizMapPass全局设置得到***//
 Texture2D<float4> _HizMap;
@@ -83,6 +87,11 @@ float GetNodeCount(uint lod)
 float GetHalfPatchSize(uint lod)
 {
     return WorldLodParams[lod].y;
+}
+
+uint GetSectorCountPerNode(uint lod)
+{
+    return(uint)WorldLodParams[lod].w;
 }
 
 float2 GetMinMaxHeight(uint lod, uint2 nodeLoc)
@@ -127,11 +136,6 @@ bool EvaluateNode(uint2 nodeLoc, uint lod)
 }
 
 
-// //将三维转换为1维的
-// uint GetNodeId(uint3 nodeLoc)
-// {
-//     return NodeIDOffsetOfLOD[nodeLoc.z] + nodeLoc.y * GetNodeCount(nodeLoc.z) + nodeLoc.x;
-// }
 //============裁剪相关
 
 //获取Patch的包围盒
@@ -286,7 +290,7 @@ bool Cull(Bounds bounds)
 {
     #if CULL_ON
         //使用视锥裁剪
-        // return FrustumCull(_CameraFrustumPlanes, bounds);
+        return FrustumCull(_CameraFrustumPlanes, bounds);
         //使用HiZ裁剪
         return HizOcclusionCull(bounds);
 
@@ -295,13 +299,25 @@ bool Cull(Bounds bounds)
     return false;
 }
 //------------
+uint GetNodeId(uint3 nodeLoc)
+{
+    return NodeIDOffsetOfLOD[nodeLoc.z] + nodeLoc.y * GetNodeCount(nodeLoc.z) + nodeLoc.x;
+}
 
+uint GetNodeId(uint2 nodeLoc, uint mip)
+{
+    return GetNodeId(uint3(nodeLoc, mip));
+}
 
 //遍历四叉树，进行节点评价，生成AppendFinalNodeList和NodeDescriptors
 [numthreads(1, 1, 1)]
 void TraverseQuadTree(uint3 id: SV_DispatchThreadID)
 {
     uint2 nodeLoc = ConsumeNodeList.Consume();
+    
+    uint nodeId = GetNodeId(nodeLoc, PassLOD);
+    NodeDescriptor desc = NodeDescriptors[nodeId];
+
     if (PassLOD > 0 && EvaluateNode(nodeLoc, PassLOD))
     {
         //四分
@@ -309,12 +325,13 @@ void TraverseQuadTree(uint3 id: SV_DispatchThreadID)
         AppendNodeList.Append(nodeLoc * 2 + uint2(1, 0));
         AppendNodeList.Append(nodeLoc * 2 + uint2(0, 1));
         AppendNodeList.Append(nodeLoc * 2 + uint2(1, 1));
+        desc.branch = 1;
     }
     else
     {
         //不需要分化 全部加入到FinalNode
         AppendFinalNodeList.Append(uint3(nodeLoc, PassLOD));
-
+        desc.branch = 0;
 
         #if NODE_BOUNDS_DEBUG
             float halfNodeSize = GetHalfPatchSize(PassLOD) * 8;//一个Node有8*8个Patch组成
@@ -337,6 +354,7 @@ void TraverseQuadTree(uint3 id: SV_DispatchThreadID)
             NodeBoundsList.Append(boundsDebug);
         #endif
     }
+    NodeDescriptors[nodeId] = desc;
 }
 
 RenderPatch CreatePatch(uint3 nodeLoc, uint2 patchOffset)
@@ -398,11 +416,18 @@ void BuildPatches(uint3 id: SV_DispatchThreadID, uint3 groupId: SV_GroupID, uint
 void BuildLodMap(uint3 id: SV_DispatchThreadID)
 {
     uint2 sectorLoc = id.xy;
-    // [unroll]
-    // for (uint lod = MAX_TERRAIN_LOD; lod >= 0; lod--)
-    // {
-
-    // }
-
+    [unroll]
+    for (uint lod = MAX_TERRAIN_LOD; lod >= 0; lod--)
+    {
+        uint sectorCount = GetSectorCountPerNode(lod);
+        uint2 nodeLoc = sectorLoc / sectorCount;
+        uint nodeId = GetNodeId(nodeLoc, lod);
+        NodeDescriptor desc = NodeDescriptors[nodeId];
+        if (desc.branch == 0)
+        {
+            _LodMap[sectorLoc] = lod / 5.0;
+            return;
+        }
+    }
+    _LodMap[sectorLoc] = 0;
 }
-//

@@ -329,12 +329,13 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   terrainAsset: {fileID: 11400000, guid: f230cd276490a4920b687fab2afc73f5, type: 2}
-  Cull: 0
+  Cull: 1
   patchDebug: 1
   nodeDebug: 1
   mipDebug: 1
-  nodeBoundsDebug: 0
-  patchBoundsDebug: 0
+  nodeBoundsDebug: 1
+  patchBoundsDebug: 1
+  boundsHeightRedundance: 5
 --- !u!4 &787169529
 Transform:
   m_ObjectHideFlags: 0
@@ -394,8 +395,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_RenderShadows: 1
-  m_RequiresDepthTextureOption: 1
-  m_RequiresOpaqueTextureOption: 0
+  m_RequiresDepthTextureOption: 2
+  m_RequiresOpaqueTextureOption: 2
   m_CameraType: 0
   m_Cameras: []
   m_RendererIndex: 0

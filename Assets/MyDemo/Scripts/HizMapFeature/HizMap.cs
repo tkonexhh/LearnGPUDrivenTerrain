@@ -97,6 +97,7 @@ public class HizMap
             dstWidth = Mathf.CeilToInt(dstWidth * 0.5f);
             dstHeight = Mathf.CeilToInt(dstHeight * 0.5f);
 
+            m_CommandBuffer.SetComputeVectorParam(m_ComputerShader, ShaderConstants.DstTexSize, new Vector4(dstWidth, dstHeight, 0, 0));
             m_CommandBuffer.SetComputeIntParam(m_ComputerShader, ShaderConstants.Mip, i);
             m_CommandBuffer.SetComputeTextureParam(m_ComputerShader, KERNEL_REDUCE, ShaderConstants.MipTex, hizMap, i);
 
