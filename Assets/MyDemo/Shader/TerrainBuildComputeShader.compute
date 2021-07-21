@@ -380,15 +380,64 @@ RenderPatch CreatePatch(uint3 nodeLoc, uint2 patchOffset)
 }
 
 
+//返回一个node节点覆盖的Sector范围
+uint4 GetSectorBounds(uint3 nodeLoc)
+{
+    uint sectorCountPerNode = GetSectorCountPerNode(nodeLoc.z);
+    uint2 sectorMin = nodeLoc.xy * sectorCountPerNode;
+    return uint4(sectorMin, sectorMin + sectorCountPerNode - 1);
+}
+
+//Sector图的LOD
+uint GetLod(uint2 sectorLoc)
+{
+    if (sectorLoc.x < 0 || sectorLoc.y < 0 || sectorLoc.x >= SECTOR_COUNT_WORLD || sectorLoc.y >= SECTOR_COUNT_WORLD)
+    {
+        return 0;
+    }
+    //r的范围是 0-1 需要还原成对应整数
+    return round(_LodMap[sectorLoc].r * MAX_TERRAIN_LOD);
+}
+
+void SetLodTrans(inout RenderPatch patch, uint3 nodeLoc, uint2 patchOffset)
+{
+    uint lod = nodeLoc.z;
+    uint4 sectorBounds = GetSectorBounds(nodeLoc);//0-160
+    int4 lodTrans = int4(0, 0, 0, 0);
+    if (patchOffset.x == 0)
+    {
+        //左边缘 需要判断左边Node的LOD级别
+        lodTrans.x = GetLod(sectorBounds.xy + int2(-1, 0)) - lod;
+    }
+
+    if (patchOffset.y == 0)
+    {
+        //下边缘 需要判断下边Node的LOD级别
+        lodTrans.y = GetLod(sectorBounds.xy + int2(0, -1)) - lod;
+    }
+
+    if (patchOffset.x == 7)
+    {
+        //右边缘
+        lodTrans.z = GetLod(sectorBounds.zw + int2(1, 0)) - lod;
+    }
+
+    if (patchOffset.y == 7)
+    {
+        //上边缘
+        lodTrans.w = GetLod(sectorBounds.zw + int2(0, 1)) - lod;
+    }
+    patch.lodTrans = (uint4)max(0, lodTrans);
+}
+
 // 8,8 的原因是 一个Node由8*8个Patch组成
 [numthreads(8, 8, 1)]
 void BuildPatches(uint3 id: SV_DispatchThreadID, uint3 groupId: SV_GroupID, uint3 groupThreadId: SV_GroupThreadID)
 {
-    uint3 nodeLoc = FinalNodeList[groupId.x];
-    uint2 patchOffset = groupThreadId.xy;
+    uint3 nodeLoc = FinalNodeList[groupId.x];//??
+    uint2 patchOffset = groupThreadId.xy;//??
     //生成Patch
     RenderPatch patch = CreatePatch(nodeLoc, patchOffset);
-    
 
     //裁剪
     Bounds bounds = GetPatchBounds(patch);
@@ -396,7 +445,7 @@ void BuildPatches(uint3 id: SV_DispatchThreadID, uint3 groupId: SV_GroupID, uint
     {
         return;
     }
-
+    SetLodTrans(patch, nodeLoc, patchOffset);
     CulledPatchList.Append(patch);
 
     //构建每个Patch的包围盒 由两个V3坐标组成
@@ -425,7 +474,7 @@ void BuildLodMap(uint3 id: SV_DispatchThreadID)
         NodeDescriptor desc = NodeDescriptors[nodeId];
         if (desc.branch == 0)
         {
-            _LodMap[sectorLoc] = lod / 5.0;
+            _LodMap[sectorLoc] = lod / 5.0;//5层LOD 5 = 1
             return;
         }
     }

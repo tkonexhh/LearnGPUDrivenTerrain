@@ -14,6 +14,7 @@ public class GPUTerrain : MonoBehaviour
     public bool mipDebug = false;
     public bool nodeBoundsDebug = false;//Node包围盒
     public bool patchBoundsDebug = false;//Patch包围盒
+    public bool seamLess = false;
 
     [Range(0, 100)] public int boundsHeightRedundance = 5;
 
@@ -87,6 +88,10 @@ public class GPUTerrain : MonoBehaviour
             else
                 m_TerrainMaterial.DisableKeyword("ENABLE_NODE_DEBUG");
 
+            if (this.seamLess)
+                m_TerrainMaterial.EnableKeyword("ENABLE_LOD_SEAMLESS");
+            else
+                m_TerrainMaterial.DisableKeyword("ENABLE_LOD_SEAMLESS");
 
 
             m_TerrainMaterial.SetMatrix("_WorldToNormalMapMatrix", Matrix4x4.Scale(this.terrainAsset.worldSize).inverse);
