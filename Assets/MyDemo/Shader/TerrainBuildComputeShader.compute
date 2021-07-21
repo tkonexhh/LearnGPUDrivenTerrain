@@ -8,6 +8,7 @@
 #pragma multi_compile_local __ PATCH_BOUNDS_DEBUG //开启Patch BOUNDS 调式
 #pragma multi_compile_local __ NODE_BOUNDS_DEBUG //开启NODE BOUNDS 调式
 #pragma multi_compile_local __ CULL_ON //开启Cull
+#pragma multi_compile_local __ CULL_HIZ //开启Hiz
 
 #include "./TerrainInput.hlsl"
 
@@ -290,9 +291,24 @@ bool Cull(Bounds bounds)
 {
     #if CULL_ON
         //使用视锥裁剪
-        return FrustumCull(_CameraFrustumPlanes, bounds);
-        //使用HiZ裁剪
-        return HizOcclusionCull(bounds);
+        // return FrustumCull(_CameraFrustumPlanes, bounds);
+        // //使用HiZ裁剪
+        // return HizOcclusionCull(bounds);
+
+        //首先进行视锥剔除
+        if (FrustumCull(_CameraFrustumPlanes, bounds))
+        {
+            return true;
+        }
+        else
+        {
+            #if CULL_HIZ
+                //在进行HiZ剔除
+                return HizOcclusionCull(bounds);
+            #else
+                return false;
+            #endif
+        }
 
     #endif
 

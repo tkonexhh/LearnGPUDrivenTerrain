@@ -78,6 +78,7 @@ public class HizMap
 
         m_ComputerShader.GetKernelThreadGroupSizes(KERNEL_BLIT, out threadX, out threadY, out threadZ);
         //blit begin
+        //向CommandBuffer传贴图 将深度图传入到InTex中
         m_CommandBuffer.SetComputeTextureParam(m_ComputerShader, KERNEL_BLIT, ShaderConstants.InTex, ShaderConstants.CameraDepthTexture);
         m_CommandBuffer.SetComputeTextureParam(m_ComputerShader, KERNEL_BLIT, ShaderConstants.MipTex, hizMap, 0);
 
@@ -106,6 +107,8 @@ public class HizMap
             m_CommandBuffer.DispatchCompute(m_ComputerShader, KERNEL_REDUCE, groupX, groupY, 1);
         }
         //mip end
+
+
         m_CommandBuffer.SetGlobalTexture(ShaderConstants.HizMap, hizMap);
         var matrixVP = GL.GetGPUProjectionMatrix(camera.projectionMatrix, false) * camera.worldToCameraMatrix;
         m_CommandBuffer.SetGlobalMatrix(ShaderConstants.HizCameraMatrixVP, matrixVP);

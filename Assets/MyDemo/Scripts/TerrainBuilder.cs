@@ -13,8 +13,7 @@ public class TerrainBuilder : System.IDisposable
     private ComputeBuffer m_MaxLODNodeList;//MAXLOD下的Node list
 
 
-    private ComputeBuffer _nodeListA;
-    private ComputeBuffer _nodeListB;
+    private ComputeBuffer _nodeListA, _nodeListB;//两个临时中间量
     private ComputeBuffer m_IndirectArgsBuffer;
 
     private ComputeBuffer m_CulledPatchBuffer;//裁剪之后剩余的Patch
@@ -93,13 +92,9 @@ public class TerrainBuilder : System.IDisposable
         set
         {
             if (value)
-            {
                 m_ComputeShader.EnableKeyword("NODE_BOUNDS_DEBUG");
-            }
             else
-            {
                 m_ComputeShader.DisableKeyword("NODE_BOUNDS_DEBUG");
-            }
             _isNodeBoundsBufferOn = value;
         }
         get
@@ -109,23 +104,26 @@ public class TerrainBuilder : System.IDisposable
     }
 
 
-    private bool m_IsCullOn;
     public bool isCullOn
     {
         set
         {
             if (value)
-            {
                 m_ComputeShader.EnableKeyword("CULL_ON");
-            }
             else
-            {
                 m_ComputeShader.DisableKeyword("CULL_ON");
-            }
-            m_IsCullOn = value;
         }
+    }
 
-        get => m_IsCullOn;
+    public bool isCullHizmap
+    {
+        set
+        {
+            if (value)
+                m_ComputeShader.EnableKeyword("CULL_HIZ");
+            else
+                m_ComputeShader.DisableKeyword("CULL_HIZ");
+        }
     }
 
     public int boundsHeightRedundance
@@ -133,6 +131,14 @@ public class TerrainBuilder : System.IDisposable
         set
         {
             m_ComputeShader.SetInt("_BoundsHeightRedundance", value);
+        }
+    }
+
+    public float hizDepthBias
+    {
+        set
+        {
+            m_ComputeShader.SetFloat("_HizDepthBias", value);
         }
     }
 
@@ -146,8 +152,7 @@ public class TerrainBuilder : System.IDisposable
         m_MaxLODNodeList = new ComputeBuffer(TerrainAsset.MAX_LOD_NODE_COUNT * TerrainAsset.MAX_LOD_NODE_COUNT, 8, ComputeBufferType.Append);
         this.InitMaxLODNodeListDatas();
         //用于细分的两个零食ComputerBuffer
-        _nodeListA = new ComputeBuffer(_tempNodeBufferSize, 8, ComputeBufferType.Append);
-        _nodeListB = new ComputeBuffer(_tempNodeBufferSize, 8, ComputeBufferType.Append);
+        _nodeListA = _nodeListB = new ComputeBuffer(_tempNodeBufferSize, 8, ComputeBufferType.Append);
 
         m_FinalNodeListBuffer = new ComputeBuffer(m_MaxNodeBufferSize, 12, ComputeBufferType.Append);
         m_NodeDescriptors = new ComputeBuffer(TerrainDefine.MAX_NODE_ID, 4);

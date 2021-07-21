@@ -9,16 +9,16 @@ public class GPUTerrain : MonoBehaviour
     public TerrainAsset terrainAsset;
 
     public bool Cull = true;
+    public bool CullHizmap = true;
     public bool patchDebug = false;
     public bool nodeDebug = false;
     public bool mipDebug = false;
     public bool nodeBoundsDebug = false;//Node包围盒
     public bool patchBoundsDebug = false;//Patch包围盒
-    public bool seamLess = false;
+    public bool seamLess = true;//开启LOD 接缝处理
 
-    [Range(0, 100)] public int boundsHeightRedundance = 5;
-
-    // [Range(0.1f, 1.9f)] public float distanceEvaluation = 1.2f;
+    [Range(0, 100)] public int boundsHeightRedundance = 5;//Patch包围盒外扩范围
+    [Range(0.01f, 1000)] public float hizDepthBias = 1;//Hiz的误差
 
     private TerrainBuilder m_TerrainBuilder;
     private Material m_TerrainMaterial;
@@ -141,6 +141,8 @@ public class GPUTerrain : MonoBehaviour
             m_TerrainBuilder.isPatchBoundsBufferOn = this.patchBoundsDebug;
             m_TerrainBuilder.isNodeBoundsBufferOn = this.nodeBoundsDebug;
             m_TerrainBuilder.isCullOn = this.Cull;
+            m_TerrainBuilder.isCullHizmap = this.CullHizmap;
+            m_TerrainBuilder.hizDepthBias = this.hizDepthBias;
             m_IsTerrainMaterialDirty = true;
         }
     }
